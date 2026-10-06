@@ -97,3 +97,17 @@ def test_mix_gain_plan_caps_cumulative_ducking():
     plan = build_mix_gain_plan(authority, relationships, max_total_duck=0.30)
     assert sum(float(x["allocated_amount"]) for x in plan["bass"]) <= 0.30 + 1e-9
     assert plan["bass"][0]["reference_id"] == "vocal"
+
+
+def test_spectral_curve_dynamic_masking_has_localized_curve():
+    from audio.processing.dynamic_masking import apply_spectral_curve_dynamic_masking
+    sr = 8000
+    data = np.zeros((8000, 1), dtype=np.float32)
+    time = np.arange(8000, dtype=np.float32) / sr
+    data[:, 0] = np.sin(2 * np.pi * 1000 * time)
+    source = {"role": "guitar", "bpm": 60.0}
+    reference = {"role": "vocal", "bpm": 60.0, "onset_beats": (0.25,), "spectral_centroid_hz": 1000.0, "_source_id": "vocal"}
+    out, meta = apply_spectral_curve_dynamic_masking(data, sr, source, reference, 0.30, bands=("mid",), ranges={"mid": (500.0, 1800.0)})
+    assert meta["applied"] is True
+    assert meta["center_hz"] == 1000.0
+    assert float(np.sqrt(np.mean(out[1800:3200, 0] ** 2))) < float(np.sqrt(np.mean(data[1800:3200, 0] ** 2)))
