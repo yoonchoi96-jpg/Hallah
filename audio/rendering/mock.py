@@ -13,19 +13,19 @@ import numpy as np
 
 from audio.cache.keys import build_cache_key
 from audio.midi.generator import MidiSequence, generate_sequence
-from audio.rendering.contracts import RenderRequest, RenderResult
+from audio.rendering.contracts import RenderRequest, RenderResult\nfrom audio.rendering.source import SourceAudioGenerator
 
 
 class MockAudioGenerator:
     """Backward-compatible name for the deterministic V0 audio renderer."""
 
     def __init__(self, cache_dir: str | Path = ".hallah-cache") -> None:
-        self.cache_dir = Path(cache_dir)
+        self.cache_dir = Path(cache_dir)\n        self.source_generator = SourceAudioGenerator(self.cache_dir)
 
     def render(self, request: RenderRequest) -> RenderResult:
         if request.kind != "audio":
             raise ValueError("MockAudioGenerator only renders audio requests.")
-        cache_key = build_cache_key(
+        if request.source_asset_ids:\n            return self.source_generator.render(request)\n        cache_key = build_cache_key(
             request.candidate_id,
             request.context_version,
             request.kind,
