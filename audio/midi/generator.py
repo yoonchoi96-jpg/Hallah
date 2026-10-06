@@ -157,6 +157,12 @@ def _rhythm_notes(direction: str) -> list[MidiNote]:
     return [MidiNote(36, start, 0.2, 92, channel=9) for start in starts]
 
 
+def _authority_ids(changes: Mapping[str, object], role: str) -> tuple[str, ...]:
+    prefix = f"authority:{ {'bass': 'low_end', 'rhythm': 'rhythm', 'harmony': 'harmony', 'melody': 'melody'}.get(role, role) }:"
+    raw = changes.get("constraints", ())
+    return tuple(str(item) for item in raw if str(item).startswith(prefix))
+
+
 def generate_sequence(request: RenderRequest) -> MidiSequence:
     changes: Mapping[str, object] = request.parameter_changes
     root = _key_pitch(str(changes["key"])) if "key" in changes else _key_pitch(None)
@@ -165,6 +171,7 @@ def generate_sequence(request: RenderRequest) -> MidiSequence:
     chords = tuple(str(x) for x in changes.get("chord_progression", ()))
     scale_name = str(changes.get("scale", "major"))
     role = _role(request.intent)
+    authorities = _authority_ids(changes, role)
     if role == "bass":
         notes = _bass_notes(chords, root, direction)
     elif role == "harmony":
