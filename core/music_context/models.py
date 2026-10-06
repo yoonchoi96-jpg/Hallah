@@ -3,6 +3,7 @@ from __future__ import annotations
 from copy import deepcopy
 from dataclasses import dataclass, field
 from typing import Literal
+from core.music_context.constraints import ContextConstraint, MusicalRelationship
 
 AuthorityDimension = Literal["harmony","rhythm","melody","low_end","texture","arrangement"]
 
@@ -12,12 +13,6 @@ class MusicalAuthority:
     dimension: AuthorityDimension
     confidence: float
     rationale: str = ""
-
-@dataclass
-class ContextDecision:
-    description: str
-    source: str = "user"
-    version: int = 0
 
 @dataclass
 class SongContext:
@@ -35,6 +30,8 @@ class SongContext:
     dependencies: dict[str, list[str]] = field(default_factory=dict)
     conflicts: list[str] = field(default_factory=list)
     pending_decisions: list[str] = field(default_factory=list)
+    constraints: list[ContextConstraint] = field(default_factory=list)
+    relationships: list[MusicalRelationship] = field(default_factory=list)
 
     def next_version(self) -> "SongContext":
         new = deepcopy(self)
