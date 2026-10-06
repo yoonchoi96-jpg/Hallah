@@ -16,7 +16,12 @@ class SourceAudioGenerator:
         return str(meta.get("dimension", ""))
 
     @classmethod
-    def _pitch_allowed(cls, meta: dict[str, object], changes: dict[str, object]) -> bool:
+    def _pitch_allowed(cls, sid: str, meta: dict[str, object], changes: dict[str, object]) -> bool:
+        overrides=changes.get("source_adaptations")
+        if isinstance(overrides,dict):
+            source_override=overrides.get(sid)
+            if isinstance(source_override,dict) and isinstance(source_override.get("pitch_adaptation"),bool):
+                return bool(source_override["pitch_adaptation"])
         override=changes.get("pitch_adaptation")
         if isinstance(override,bool):
             return override
@@ -88,7 +93,7 @@ class SourceAudioGenerator:
         dimension=self._authority_dimension(meta) if isinstance(meta,dict) else ""
         sbpm,tbpm=meta.get("bpm"),request.parameter_changes.get("bpm"); rate=1.0
         source_key, target_key = meta.get("key"), request.parameter_changes.get("key")
-        pitch_allowed = self._pitch_allowed(meta, request.parameter_changes)
+        pitch_allowed = self._pitch_allowed(sid, meta, request.parameter_changes)
         source_pc, target_pc = self._key_pc(source_key), self._key_pc(target_key)
         semitones = 0.0
         if pitch_allowed and source_pc is not None and target_pc is not None:
