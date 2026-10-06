@@ -1,4 +1,4 @@
-from core.audio.rendering import RenderRequest, RenderResult, build_render_request
+from audio.rendering.contracts import RenderRequest, RenderResult, build_render_request
 from audio.cache import build_cache_key
 
 
