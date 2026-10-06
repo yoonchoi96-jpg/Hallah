@@ -1,11 +1,15 @@
 """Persistent musical state for a Hallah song."""
 from __future__ import annotations
+
 from copy import deepcopy
 from dataclasses import dataclass, field
 from typing import Literal
+
+from core.candidates.models import Candidate
 from core.music_context.constraints import ContextConstraint, MusicalRelationship
 
-AuthorityDimension = Literal["harmony","rhythm","melody","low_end","texture","arrangement"]
+AuthorityDimension = Literal["harmony", "rhythm", "melody", "low_end", "texture", "arrangement"]
+
 
 @dataclass
 class MusicalAuthority:
@@ -13,6 +17,7 @@ class MusicalAuthority:
     dimension: AuthorityDimension
     confidence: float
     rationale: str = ""
+
 
 @dataclass
 class SongContext:
@@ -32,6 +37,8 @@ class SongContext:
     pending_decisions: list[str] = field(default_factory=list)
     constraints: list[ContextConstraint] = field(default_factory=list)
     relationships: list[MusicalRelationship] = field(default_factory=list)
+    candidates: list[Candidate] = field(default_factory=list)
+    candidate_history: list[str] = field(default_factory=list)
 
     def next_version(self) -> "SongContext":
         new = deepcopy(self)
