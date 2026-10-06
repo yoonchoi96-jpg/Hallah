@@ -47,3 +47,35 @@ def test_audio_preview_uses_generated_sequence_not_placeholder(tmp_path):
     assert samples.size > 0
     assert np.max(np.abs(samples)) > 100
     assert result.duration_seconds >= 2.0
+
+def test_multi_source_audio_preview_mixes_authority_sources(tmp_path):
+    import math
+    import wave
+    import numpy as np
+    def tone(path, seconds):
+        sr=22050
+        t=np.arange(int(sr*seconds))/sr
+        x=.15*np.sin(2*math.pi*220*t)
+        with wave.open(str(path),"wb") as wav:
+            wav.setnchannels(1)
+            wav.setsampwidth(2)
+            wav.setframerate(sr)
+            wav.writeframes((x*32767).astype("<i2").tobytes())
+
+    first=tmp_path/"drums.wav"
+    second=tmp_path/"guitar.wav"
+    tone(first,2.0)
+    tone(second,2.0)
+    context=SongContext(version=2)
+    candidate=build_candidates(context,"test")[0]
+    request=build_render_request(
+        candidate.id, context.version, candidate.intent,
+        {"authority_analysis":{
+            str(first):{"bpm":120.0,"dimension":"rhythm"},
+            str(second):{"bpm":120.0,"dimension":"harmony"},
+        }},
+        source_asset_ids=(str(first),str(second)),
+    )
+    result=MockAudioGenerator(tmp_path/"cache").render(request)
+    assert result.metadata["stem_count"] == 2
+    assert len(result.metadata["stem_refs"]) == 2
