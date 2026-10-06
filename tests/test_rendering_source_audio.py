@@ -46,3 +46,37 @@ def test_source_audio_same_key_does_not_shift(tmp_path):
     result=SourceAudioGenerator(tmp_path/"cache").render(req)
     assert result.metadata["pitch_shifted"] is False
     assert result.metadata["pitch_shift_semitones"] == 0.0
+
+
+def test_source_audio_source_specific_tempo_reference(tmp_path):
+    src=tmp_path/"drums.wav"
+    ref=tmp_path/"guitar.wav"
+    _tone(src,seconds=4.0)
+    _tone(ref,seconds=2.0)
+    req=build_render_request("source-v5",1,"follow guitar bpm",{
+        "source_adaptations":{str(src):{"bpm":str(ref)}},
+        "authority_analysis":{
+            str(src):{"bpm":120.0},
+            str(ref):{"bpm":90.0},
+        },
+    },source_asset_ids=(str(src),))
+    result=SourceAudioGenerator(tmp_path/"cache").render(req)
+    assert result.metadata["target_bpm"] == 90.0
+    assert result.metadata["tempo_adapted"] is True
+
+
+def test_source_audio_rhythm_source_can_explicitly_pitch_shift(tmp_path):
+    src=tmp_path/"drums.wav"
+    ref=tmp_path/"guitar.wav"
+    _tone(src,seconds=3.0)
+    _tone(ref,seconds=3.0)
+    req=build_render_request("source-v6",1,"pitch drums to guitar",{
+        "source_adaptations":{str(src):{"pitch":str(ref)}},
+        "authority_analysis":{
+            str(src):{"bpm":120.0,"key":"C","dimension":"rhythm"},
+            str(ref):{"bpm":120.0,"key":"D","dimension":"harmony"},
+        },
+    },source_asset_ids=(str(src),))
+    result=SourceAudioGenerator(tmp_path/"cache").render(req)
+    assert result.metadata["pitch_shifted"] is True
+    assert result.metadata["pitch_shift_semitones"] == 2.0
