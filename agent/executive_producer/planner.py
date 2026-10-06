@@ -30,6 +30,8 @@ def parse_production_intent(utterance: str) -> ProductionIntent:
     authorities=[]
     if re.search(r"(드럼|drum).*(리듬|그루브).*(따라|기준)",text,re.I):
         authorities.append(("drums","rhythm"))
+    if re.search(r"(기타|guitar).*(리듬|그루브).*(그대로|따라|기준|가져)",text,re.I):
+        authorities.append(("guitar","rhythm"))
     if tonal_source:
         authorities += [(tonal_source,"harmony"),(tonal_source,"texture")]
     constraints=[]
@@ -44,7 +46,9 @@ def plan_context_patch(context: SongContext, intent: ProductionIntent) -> Contex
     for source in intent.fixed_sources: ops.append(("constraint",source,"fixed"))
     for constraint in intent.constraints: ops.append(("constraint",constraint,"adapt"))
     if intent.bpm is not None: ops.append(("bpm",str(intent.bpm),None))
-    elif ("drums","rhythm") in intent.authority_requests: ops.append(("bpm","drums","follow"))
+    elif intent.authority_requests:
+        rhythm_sources=[source for source,dimension in intent.authority_requests if dimension=="rhythm"]
+        if rhythm_sources: ops.append(("bpm",rhythm_sources[0],"follow"))
     if intent.tonal_source: ops.append(("tonality",intent.tonal_source,"follow"))
     return ContextPatch(tuple(ops),"Derived from the user's production direction.")
 
