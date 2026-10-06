@@ -25,6 +25,13 @@ class AudioAnalysis:
     stereo_width: float | None = None
     stereo_correlation: float | None = None
     onset_rate: float | None = None
+    transient_ratio: float | None = None
+    attack_seconds: float | None = None
+    decay_seconds: float | None = None
+    sustain_level: float | None = None
+    release_seconds: float | None = None
+    fundamental_hz: float | None = None
+    pitch_confidence: float | None = None
     confidence: dict[str, float] = field(default_factory=dict)
 
 class AudioAnalyzer(Protocol):
