@@ -81,3 +81,19 @@ def test_source_audio_rhythm_source_can_explicitly_pitch_shift(tmp_path):
     assert result.metadata["pitch_shifted"] is True
     assert result.metadata["pitch_shift_semitones"] == 2.0
     assert result.metadata["adaptation_reference"] == str(ref)
+
+def test_source_audio_mix_builds_from_independent_stems(tmp_path):
+    first=tmp_path/"first.wav"
+    second=tmp_path/"second.wav"
+    _tone(first,seconds=2.0)
+    _tone(second,seconds=3.0)
+    req=build_render_request("source-mix-v1",1,"mix sources",{
+        "authority_analysis":{
+            str(first):{"bpm":120.0,"dimension":"rhythm"},
+            str(second):{"bpm":120.0,"dimension":"harmony"},
+        },
+    },source_asset_ids=(str(first),str(second)))
+    result=SourceAudioGenerator(tmp_path/"cache").render_mix(req)
+    assert result.metadata["stem_count"] == 2
+    assert len(result.metadata["stem_refs"]) == 2
+    assert result.duration_seconds == 3.0
