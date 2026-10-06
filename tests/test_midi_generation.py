@@ -79,3 +79,24 @@ def test_experimental_direction_has_distinct_timing() -> None:
     identity = generate_sequence(candidate_to_render_request(candidates[0], context, kind="midi"))
     experimental = generate_sequence(candidate_to_render_request(candidates[3], context, kind="midi"))
     assert tuple(n.start_beat for n in identity.notes) != tuple(n.start_beat for n in experimental.notes)
+
+
+def test_generic_candidate_inherits_strongest_musical_authority() -> None:
+    from core.music_context.models import MusicalAuthority
+
+    context = SongContext(
+        version=0,
+        bpm=120,
+        key="C",
+        scale="major",
+        chord_progression=["C", "Am", "F", "G"],
+        authorities=[
+            MusicalAuthority("guitar-loop", "harmony", 0.97),
+            MusicalAuthority("drum-loop", "rhythm", 0.91),
+        ],
+    )
+    candidate = build_candidates(context, "make something")
+    request = candidate_to_render_request(candidate, context, kind="midi")
+    sequence = generate_sequence(request)
+    assert "role:harmony" in request.parameter_changes["constraints"]
+    assert all(note.channel == 2 for note in sequence.notes)
