@@ -169,3 +169,75 @@ def apply_frequency_dynamic_masking(
     if not metadata["applied"]:
         return data.astype(np.float32, copy=True), metadata
     return (data.astype(np.float32, copy=False) * envelope[:, None]).astype(np.float32), metadata
+
+
+def apply_spectral_curve_dynamic_masking(
+    data: np.ndarray,
+    sr: int,
+    source_meta: dict[str, object],
+    reference_meta: dict[str, object],
+    amount: float,
+    bands: tuple[str, ...] = ("low", "mid", "high"),
+    ranges: dict[str, tuple[float, float]] | None = None,
+) -> tuple[np.ndarray, dict[str, object]]:
+    """Apply a smooth spectral ducking curve centered on the reference spectrum."""
+    if len(data) == 0 or sr <= 0 or amount <= 0:
+        return data.astype(np.float32, copy=True), {"applied": False, "events": 0, "curve": ()}
+    duration = len(data) / float(sr)
+    events = _events_seconds(reference_meta, duration)
+    if not events:
+        return data.astype(np.float32, copy=True), {"applied": False, "events": 0, "curve": ()}
+    if ranges is None:
+        ranges = {"low": (20.0, 180.0), "mid": (180.0, 2500.0), "high": (2500.0, sr * 0.5)}
+    frame = min(2048, max(512, 2 ** int(np.log2(max(512, min(len(data), 2048))))))
+    hop = max(128, frame // 4)
+    window = np.hanning(frame).astype(np.float32)
+    padded = np.pad(data.astype(np.float32, copy=False), ((0, max(0, frame - len(data))), (0, 0)))
+    out = np.zeros_like(padded)
+    norm = np.zeros(len(padded), dtype=np.float32)
+    freqs = np.fft.rfftfreq(frame, 1.0 / sr)
+    mask = np.zeros(len(freqs), dtype=bool)
+    centers = []
+    for band in bands:
+        lo, hi = ranges.get(band, (0.0, 0.0))
+        lo, hi = max(20.0, float(lo)), min(sr * 0.5, float(hi))
+        if hi > lo:
+            mask |= (freqs >= lo) & (freqs <= hi)
+            centers.append((band, (lo + hi) * 0.5))
+    mono_ref = reference_meta.get("fundamental_hz")
+    ref_centroid = reference_meta.get("spectral_centroid_hz")
+    if isinstance(mono_ref, (int, float)) and 20.0 <= float(mono_ref) <= sr * 0.5:
+        center_hz = float(mono_ref)
+    elif isinstance(ref_centroid, (int, float)) and 20.0 <= float(ref_centroid) <= sr * 0.5:
+        center_hz = float(ref_centroid)
+    elif centers:
+        center_hz = sum(c for _, c in centers) / len(centers)
+    else:
+        center_hz = min(1000.0, sr * 0.25)
+    sigma = max(35.0, center_hz * 0.42)
+    minimum = max(0.0, 1.0 - min(0.35, float(amount)))
+    curve = np.ones(len(freqs), dtype=np.float32)
+    if mask.any():
+        distance = (freqs - center_hz) / sigma
+        curve[mask] = 1.0 - (1.0 - minimum) * np.exp(-0.5 * distance * distance)[mask]
+    envelope, _ = build_dynamic_envelope(len(data), sr, source_meta, reference_meta, amount)
+    for start in range(0, len(data), hop):
+        stop = start + frame
+        chunk = padded[start:stop]
+        if len(chunk) < frame:
+            chunk = np.pad(chunk, ((0, frame - len(chunk)), (0, 0)))
+        event_gain = float(envelope[min(len(data) - 1, start + frame // 2)])
+        gain = 1.0 + (curve - 1.0) * (1.0 - event_gain)
+        for channel in range(chunk.shape[1]):
+            spectrum = np.fft.rfft(chunk[:, channel] * window)
+            rendered = np.fft.irfft(spectrum * gain, n=frame).astype(np.float32)
+            out[start:stop, channel] += rendered * window
+        norm[start:stop] += window * window
+    valid = norm > 1e-8
+    out[valid] /= norm[valid, None]
+    out[~valid] = 0.0
+    return out[:len(data)].astype(np.float32), {
+        "applied": True, "amount": min(0.35, max(0.0, float(amount))),
+        "events": len(events), "bands": tuple(b for b, _ in centers),
+        "center_hz": center_hz, "sigma_hz": sigma,
+    }
