@@ -79,3 +79,15 @@ def test_multi_source_audio_preview_mixes_authority_sources(tmp_path):
     result=MockAudioGenerator(tmp_path/"cache").render(request)
     assert result.metadata["stem_count"] == 2
     assert len(result.metadata["stem_refs"]) == 2
+
+def test_four_audio_candidates_render_as_distinct_cached_artifacts(tmp_path):
+    from audio.rendering.candidates import preview_candidates
+    from core.music_context.models import SongContext
+    context=SongContext(version=0)
+    context.candidates=build_candidates(context,"make a bass")
+    rendered=preview_candidates(context,context.candidates,MockAudioGenerator(tmp_path),kind="audio")
+    assert rendered.version == context.version
+    refs=[candidate.audio_refs[0] for candidate in rendered.candidates]
+    assert len(refs) == 4
+    assert len(set(refs)) == 4
+    assert all(candidate.status == "preview_ready" for candidate in rendered.candidates)
