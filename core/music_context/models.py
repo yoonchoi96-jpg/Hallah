@@ -39,6 +39,7 @@ class SongContext:
     pending_decisions: list[str] = field(default_factory=list)
     constraints: list[ContextConstraint] = field(default_factory=list)
     relationships: list[MusicalRelationship] = field(default_factory=list)
+    adaptation_overrides: dict[str, dict[str, object]] = field(default_factory=dict)
     candidates: list[Candidate] = field(default_factory=list)
     candidate_history: list[str] = field(default_factory=list)
 
