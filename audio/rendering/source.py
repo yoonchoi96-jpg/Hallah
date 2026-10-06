@@ -298,7 +298,9 @@ class SourceAudioGenerator:
             if .5<=rate<=2:
                 data=self._stretch(data,rate)
         data, candidate_gain = self._apply_candidate_character(data, request.parameter_changes)
-        data, tone_settings = self._candidate_tone(data, sr, request.parameter_changes)\n        key=build_cache_key(request.candidate_id,request.context_version,request.kind,request.parameter_changes,request.source_asset_ids)
+        data, tone_settings = self._candidate_tone(data, sr, request.parameter_changes)
+        data, space_transient = self._candidate_space_transient(data, sr, request.parameter_changes)
+        key=build_cache_key(request.candidate_id,request.context_version,request.kind,request.parameter_changes,request.source_asset_ids)
         out=self.cache_dir/f"{key}.wav"
         if not out.exists(): self._write(out,data,sr)
         return RenderResult(
@@ -318,7 +320,10 @@ class SourceAudioGenerator:
                 "target_key":target_key,
                 "pitch_shift_semitones":semitones,
                 "pitch_shifted":abs(semitones)>1e-6,
-                "adaptation_reference":reference_meta.get("_source_id"),\n                "candidate_direction":str(request.parameter_changes.get("direction", "identity")),\n                "candidate_gain":candidate_gain,
+                "adaptation_reference":reference_meta.get("_source_id"),
+                "candidate_direction":str(request.parameter_changes.get("direction", "identity")),
+                "candidate_gain":candidate_gain,
                 "candidate_tone":tone_settings,
+                "candidate_space_transient":space_transient,
             },
         )
