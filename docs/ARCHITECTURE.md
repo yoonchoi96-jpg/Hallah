@@ -65,3 +65,14 @@ Candidates are immutable proposals tied to the SongContext version from which th
 Candidate validation is deterministic and checks context-version lineage, fixed constraints, and dimension-specific musical authorities. Applying a candidate always creates a new SongContext version; the parent context remains unchanged. A candidate generated for an older context cannot be reused on an unrelated newer context.
 
 Selection and application are separate transitions so future audio/MIDI preview generation can occur between them. The candidate history and decision log preserve what was selected, rejected, and applied.
+
+## Audio candidate rendering graph
+
+For source-backed candidates, rendering is non-destructive and staged:
+
+1. each source asset is adapted independently according to its per-dimension references;
+2. each adapted source is cached as a stem;
+3. stems are combined into a cached preview mix;
+4. candidate A/B/C/D retain separate artifact references, so auditioning one candidate never overwrites another.
+
+The render graph is deliberately separate from Song Context mutation. Previewing candidates does not advance musical context; selecting and applying a candidate remains the user-controlled commit point.
