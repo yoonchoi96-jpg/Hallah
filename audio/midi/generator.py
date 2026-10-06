@@ -32,25 +32,37 @@ def _key_pitch(key: str | None) -> int:
 def _scale(scale: str | None) -> tuple[int, ...]:
     return _SCALE_INTERVALS.get((scale or "major").strip().lower().replace(" ","_"), _SCALE_INTERVALS["major"])
 
+def _chord_root(chord: str, fallback: int) -> int:
+    token = chord.strip().upper().replace("♯", "#").replace("♭", "B")
+    return fallback + _NOTE_NAMES.get(token.split(":")[0].split("/")[0].rstrip("0123456789"), 0)
+
+
 def generate_sequence(request: RenderRequest) -> MidiSequence:
     changes: Mapping[str, object] = request.parameter_changes
     root = _key_pitch(str(changes["key"])) if "key" in changes else _key_pitch(None)
-    degrees = [root + interval for interval in _scale(str(changes.get("scale","major")))]
-    direction = str(changes.get("direction","identity"))
-    bpm = float(changes.get("bpm",120.0))
+    degrees = [root + interval for interval in _scale(str(changes.get("scale", "major")))]
+    direction = str(changes.get("direction", "identity"))
+    bpm = float(changes.get("bpm", 120.0))
+    chords = tuple(str(x) for x in changes.get("chord_progression", ()))
     patterns = {
-        "identity": ((0,2,4,0,4,2,0,0),(1.0,)*8),
-        "natural": ((0,1,2,4,2,1,3,4),(0.5,0.5,1.0,1.0,0.5,0.5,1.0,1.0)),
-        "bold": ((0,4,6,4,7,4,6,2),(0.5,)*8),
-        "experimental": ((0,3,1,5,2,6,4,1),(0.75,0.25,0.5,0.5,0.75,0.25,0.5,0.5)),
+        "identity": ((0, 2, 4, 0, 4, 2, 0, 0), (1.0,) * 8),
+        "natural": ((0, 1, 2, 4, 2, 1, 3, 4), (0.5, 0.5, 1.0, 1.0, 0.5, 0.5, 1.0, 1.0)),
+        "bold": ((0, 4, 6, 4, 7, 4, 6, 2), (0.5,) * 8),
+        "experimental": ((0, 3, 1, 5, 2, 6, 4, 1), (0.75, 0.25, 0.5, 0.5, 0.75, 0.25, 0.5, 0.5)),
     }
     pattern, lengths = patterns.get(direction, patterns["identity"])
     notes = []
     beat = 0.0
     for i, degree in enumerate(pattern):
-        pitch = degrees[degree % len(degrees)] + 12 * (degree // len(degrees))
-        if direction == "experimental" and i in (3,6): pitch += 1
-        notes.append(MidiNote(pitch, beat, lengths[i], min(120,72+(i%4)*8+(10 if direction=="bold" else 0))))
+        if chords:
+            chord_root = _chord_root(chords[i % len(chords)], root)
+            chord_intervals = (0, 4, 7) if "MIN" not in chords[i % len(chords)].upper() else (0, 3, 7)
+            pitch = chord_root + chord_intervals[(i + (1 if direction == "bold" else 0)) % 3]
+        else:
+            pitch = degrees[degree % len(degrees)] + 12 * (degree // len(degrees))
+        if direction == "experimental" and i in (3, 6):
+            pitch += 1
+        notes.append(MidiNote(pitch, beat, lengths[i], min(120, 72 + (i % 4) * 8 + (10 if direction == "bold" else 0))))
         beat += lengths[i]
     return MidiSequence(tuple(notes), bpm)
 
