@@ -27,3 +27,22 @@ def test_source_audio_tempo_adaptation(tmp_path):
     result=SourceAudioGenerator(tmp_path/"cache").render(req)
     assert result.metadata["tempo_adapted"] is True
     assert 4.5 < result.duration_seconds < 5.5
+
+def test_source_audio_pitch_adaptation_preserves_duration(tmp_path):
+    src=tmp_path/"source.wav"; _tone(src,seconds=3.0)
+    req=build_render_request("source-v3",1,"fit key",{
+        "key":"D","authority_analysis":{str(src):{"key":"C"}}
+    },source_asset_ids=(str(src),))
+    result=SourceAudioGenerator(tmp_path/"cache").render(req)
+    assert result.metadata["pitch_shifted"] is True
+    assert result.metadata["pitch_shift_semitones"] == 2.0
+    assert abs(result.duration_seconds-3.0) < .08
+
+def test_source_audio_same_key_does_not_shift(tmp_path):
+    src=tmp_path/"source.wav"; _tone(src,seconds=3.0)
+    req=build_render_request("source-v4",1,"keep key",{
+        "key":"C","authority_analysis":{str(src):{"key":"C"}}
+    },source_asset_ids=(str(src),))
+    result=SourceAudioGenerator(tmp_path/"cache").render(req)
+    assert result.metadata["pitch_shifted"] is False
+    assert result.metadata["pitch_shift_semitones"] == 0.0
