@@ -79,3 +79,21 @@ def test_frequency_dynamic_masking_ducks_only_selected_band():
         return float(np.sqrt(np.mean(np.square(x))))
     assert rms(rendered[near]) < rms(data[near])
     assert abs(rms(rendered[far]) - rms(data[far])) < 0.02
+
+
+def test_mix_gain_plan_caps_cumulative_ducking():
+    from audio.processing.masking import build_mix_gain_plan
+    authority = {
+        "bass": {"role": "bass", "low_energy_ratio": 0.7, "mid_energy_ratio": 0.2, "high_energy_ratio": 0.1},
+        "kick": {"role": "kick", "dimension": "rhythm", "low_energy_ratio": 0.7, "mid_energy_ratio": 0.2, "high_energy_ratio": 0.1},
+        "vocal": {"role": "vocal", "dimension": "melody", "low_energy_ratio": 0.1, "mid_energy_ratio": 0.7, "high_energy_ratio": 0.2},
+    }
+    relationships = {
+        "bass": {"decisions": (
+            {"reference_id": "kick", "priority": 92, "amount": 0.24, "bands": ("low",)},
+            {"reference_id": "vocal", "priority": 100, "amount": 0.24, "bands": ("mid",)},
+        )}
+    }
+    plan = build_mix_gain_plan(authority, relationships, max_total_duck=0.30)
+    assert sum(float(x["allocated_amount"]) for x in plan["bass"]) <= 0.30 + 1e-9
+    assert plan["bass"][0]["reference_id"] == "vocal"
