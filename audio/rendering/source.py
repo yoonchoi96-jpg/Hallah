@@ -69,7 +69,7 @@ class SourceAudioGenerator:
     def render(self,request:RenderRequest)->RenderResult:
         if request.kind!="audio": raise ValueError("SourceAudioGenerator only renders audio.")
         if not request.source_asset_ids: raise ValueError("source_asset_ids required")
-        sid=request.source_asset_ids[0]; path=Path(sid)
+        sid=request.source_asset_ids[0]; path=Path(sid)  # primary source
         if not path.exists(): raise FileNotFoundError(path)
         data,sr=self._read(path); auth=request.parameter_changes.get("authority_analysis",{})
         meta=auth.get(sid,{}) if isinstance(auth,dict) else {}
