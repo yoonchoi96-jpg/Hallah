@@ -4,6 +4,10 @@ from dataclasses import dataclass
 from typing import Literal
 
 ConstraintType = Literal["fixed","follow","adapt","avoid"]
+
+# Adaptation dimensions are intentionally independent: a source may follow
+# another source for rhythm while using a different source for harmony.
+AdaptationDimension = Literal["bpm","tempo","key","pitch","harmony","rhythm","melody","low_end","texture","arrangement"]
 RelationshipType = Literal["authority","dependency","conflict"]
 
 @dataclass(frozen=True)
