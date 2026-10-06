@@ -39,7 +39,7 @@ def parse_production_intent(utterance: str) -> ProductionIntent:
     adaptations=[]
     # Explicit user language overrides inferred authority defaults.
     if re.search(r"(드럼|drum).*(피치|키).*(올려|내려|바꿔|맞춰)",text,re.I):
-        adaptations.append(("drums","pitch","user_override"))
+        adaptations.append(("drums","pitch","guitar" if re.search(r"(기타|guitar)",text,re.I) else "user_override"))
     if re.search(r"(기타|guitar).*(리듬|그루브).*(그대로|따라|기준|가져)",text,re.I):
         adaptations.append(("guitar","rhythm","user_override"))
     if re.search(r"(드럼|drum).*(bpm|템포).*(기타|guitar).*(맞춰|따라)",text,re.I):
