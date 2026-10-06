@@ -34,3 +34,13 @@ def test_wav_analysis_extracts_envelope_features(tmp_path):
     assert result.transient_ratio >= 0
     assert result.attack_seconds >= 0
     assert result.release_seconds >= 0
+
+
+def test_event_fields_exist_and_are_aligned(tmp_path):
+    path = tmp_path / "tone.wav"
+    write_tone(path, 440.0, 1.0)
+    result = WavAnalyzer().analyze(str(path))
+    assert isinstance(result.onset_beats, tuple)
+    assert isinstance(result.note_pitches, tuple)
+    assert isinstance(result.note_durations_beats, tuple)
+    assert len(result.note_pitches) == len(result.note_durations_beats)
