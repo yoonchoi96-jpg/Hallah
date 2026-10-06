@@ -29,6 +29,25 @@ def _priority(meta: dict[str, object]) -> float:
     dimension = str(meta.get("dimension", "")).lower()
     return max(ROLE_PRIORITY.get(role, 40), DIMENSION_PRIORITY.get(dimension, 40))
 
+
+def _band_ranges(meta: dict[str, object], sr: int) -> dict[str, tuple[float, float]]:
+    """Choose source-aware carve regions instead of fixed EQ bands."""
+    nyquist = float(sr) * 0.5
+    fundamental = meta.get("fundamental_hz")
+    centroid = meta.get("spectral_centroid_hz")
+    if isinstance(fundamental, (int, float)) and 35.0 <= float(fundamental) <= 1000.0:
+        f = float(fundamental)
+        low = (max(20.0, f * 0.55), min(220.0, f * 1.8))
+    else:
+        low = (20.0, 180.0)
+    if isinstance(centroid, (int, float)) and float(centroid) > 500.0:
+        center = float(centroid)
+        mid = (max(180.0, center * 0.45), min(4000.0, center * 1.35))
+    else:
+        mid = (180.0, 2500.0)
+    high_start = min(nyquist, max(2500.0, mid[1]))
+    return {"low": low, "mid": mid, "high": (high_start, nyquist)}
+
 def resolve_masking(
     source_id: str,
     authority_analysis: dict[str, dict[str, object]],
@@ -55,6 +74,7 @@ def resolve_masking(
         decisions.append({
             "reference_id": ref_id,
             "bands": tuple(shared),
+            "ranges": {band: _band_ranges(source, 48000)[band] for band in shared},
             "priority": ref_priority,
             "amount": min(0.24, 0.08 + (ref_priority - source_priority) / 500.0),
             "reason": f"{ref_id} has higher musical-role priority ({ref_priority:.0f} vs {source_priority:.0f}).",
