@@ -77,6 +77,7 @@ class SourceAudioGenerator:
         if not path.exists(): raise FileNotFoundError(path)
         data,sr=self._read(path); auth=request.parameter_changes.get("authority_analysis",{})
         meta=auth.get(sid,{}) if isinstance(auth,dict) else {}
+        dimension=self._authority_dimension(meta) if isinstance(meta,dict) else ""
         sbpm,tbpm=meta.get("bpm"),request.parameter_changes.get("bpm"); rate=1.0
         source_key, target_key = meta.get("key"), request.parameter_changes.get("key")
         source_pc, target_pc = self._key_pc(source_key), self._key_pc(target_key)
