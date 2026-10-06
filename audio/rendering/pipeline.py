@@ -29,6 +29,16 @@ def candidate_to_render_request(candidate: Candidate, context: SongContext, *, k
     if context.adaptation_overrides:
         changes.setdefault("source_adaptations", context.adaptation_overrides)
     authority_data=_authority_analysis(context,changes)
-    if authority_data: changes["authority_analysis"]=authority_data
+    if authority_data:
+        changes["authority_analysis"]=authority_data
+        from audio.processing.masking import build_relationship_map
+        relationship_rows=tuple({
+            "source_id": rel.source_id,
+            "target_id": rel.target_id,
+            "type": rel.type,
+            "dimension": rel.dimension,
+            "confidence": rel.confidence,
+        } for rel in context.relationships)
+        changes["mix_relationships"]=build_relationship_map(authority_data,relationship_rows)
     return build_render_request(candidate.id,context.version,candidate.intent,changes,kind=kind,
         source_asset_ids=tuple(authority_data.keys()),output_format=("mid" if kind=="midi" else "wav"))
