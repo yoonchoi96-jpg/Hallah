@@ -80,3 +80,4 @@ def test_source_audio_rhythm_source_can_explicitly_pitch_shift(tmp_path):
     result=SourceAudioGenerator(tmp_path/"cache").render(req)
     assert result.metadata["pitch_shifted"] is True
     assert result.metadata["pitch_shift_semitones"] == 2.0
+    assert result.metadata["adaptation_reference"] == str(ref)
