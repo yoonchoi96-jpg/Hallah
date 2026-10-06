@@ -1,9 +1,7 @@
-"""Contracts and domain models for Hallah audio analysis V0."""
+"""Contracts for provider-neutral audio analysis."""
 from __future__ import annotations
-
 from dataclasses import dataclass, field
 from typing import Protocol
-
 
 @dataclass(frozen=True)
 class AudioAnalysis:
@@ -28,7 +26,6 @@ class AudioAnalysis:
     stereo_correlation: float | None = None
     onset_rate: float | None = None
     confidence: dict[str, float] = field(default_factory=dict)
-
 
 class AudioAnalyzer(Protocol):
     def analyze(self, asset_id: str) -> AudioAnalysis: ...
