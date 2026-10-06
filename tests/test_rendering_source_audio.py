@@ -97,3 +97,20 @@ def test_source_audio_mix_builds_from_independent_stems(tmp_path):
     assert result.metadata["stem_count"] == 2
     assert len(result.metadata["stem_refs"]) == 2
     assert result.duration_seconds == 3.0
+
+
+def test_source_audio_candidate_directions_have_distinct_gain_character(tmp_path):
+    src=tmp_path/"source.wav"
+    _tone(src,seconds=2.0)
+    generator=SourceAudioGenerator(tmp_path/"cache")
+    peaks={}
+    for direction in ("identity","natural","bold","experimental"):
+        req=build_render_request(
+            f"direction-{direction}",1,"candidate audition",{"direction":direction},
+            source_asset_ids=(str(src),),
+        )
+        result=generator.render(req)
+        data,_=generator._read(Path(result.artifact_ref))
+        peaks[direction]=float(np.max(np.abs(data)))
+        assert result.metadata["candidate_direction"] == direction
+    assert len(set(round(value, 4) for value in peaks.values())) == 4
