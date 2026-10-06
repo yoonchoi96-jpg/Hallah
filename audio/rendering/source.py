@@ -128,6 +128,56 @@ class SourceAudioGenerator:
             results.append(self.render(stem_request))
         return tuple(results)
 
+    def render_mix(self, request: RenderRequest) -> RenderResult:
+        """Render all source assets to independent stems, then create a cached stereo-compatible mix."""
+        stems = self.render_stems(request)
+        if len(stems) == 1:
+            return stems[0]
+        arrays = []
+        sample_rate = None
+        for stem in stems:
+            data, sr = self._read(Path(stem.artifact_ref))
+            if sample_rate is None:
+                sample_rate = sr
+            elif sr != sample_rate:
+                raise ValueError("All source stems must use the same sample rate.")
+            arrays.append(data)
+        channels = max(data.shape[1] for data in arrays)
+        total = max(data.shape[0] for data in arrays)
+        mix = np.zeros((total, channels), dtype=np.float32)
+        for data in arrays:
+            if data.shape[1] == 1 and channels == 2:
+                data = np.repeat(data, 2, axis=1)
+            elif data.shape[1] != channels:
+                raise ValueError("Incompatible source channel layouts.")
+            mix[:data.shape[0], :data.shape[1]] += data
+        peak = float(np.max(np.abs(mix))) if mix.size else 0.0
+        if peak > 0.92:
+            mix *= 0.92 / peak
+        key = build_cache_key(
+            request.candidate_id,
+            request.context_version,
+            "audio-mix",
+            request.parameter_changes,
+            request.source_asset_ids,
+        )
+        out = self.cache_dir / f"{key}.wav"
+        if not out.exists():
+            self._write(out, mix, sample_rate or 44100)
+        return RenderResult(
+            candidate_id=request.candidate_id,
+            kind="audio",
+            artifact_ref=str(out),
+            cache_key=key,
+            duration_seconds=len(mix) / float(sample_rate or 44100),
+            sample_rate=sample_rate or 44100,
+            metadata={
+                "renderer": "source-audio-mix-v0.1",
+                "stem_count": len(stems),
+                "stem_refs": tuple(stem.artifact_ref for stem in stems),
+            },
+        )
+
     def render(self,request:RenderRequest)->RenderResult:
         if request.kind!="audio": raise ValueError("SourceAudioGenerator only renders audio.")
         if not request.source_asset_ids: raise ValueError("source_asset_ids required")
