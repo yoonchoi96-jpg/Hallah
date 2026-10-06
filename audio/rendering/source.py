@@ -208,9 +208,27 @@ class SourceAudioGenerator:
         source_high = source_meta.get("high_energy_ratio")
 
         # If another analyzed source occupies the same broad spectral region,
-        # gently carve the current source there. This is a preview heuristic,
-        # not a final mixing/EQ engine.
-        if isinstance(authority, dict) and authority:
+        # gently carve the current source there. Prefer explicit relationship-aware
+        # priorities when the render pipeline has resolved musical roles.
+        relationship_map = changes.get("mix_relationships", {})
+        relationship = relationship_map.get(source_id, {}) if isinstance(relationship_map, dict) else {}
+        relationship_decisions = relationship.get("decisions", ()) if isinstance(relationship, dict) else ()
+        if isinstance(relationship_decisions, (list, tuple)) and relationship_decisions:
+            for decision in relationship_decisions:
+                if not isinstance(decision, dict):
+                    continue
+                amount = float(decision.get("amount", 0.0))
+                for band in decision.get("bands", ()):
+                    lo, hi = {
+                        "low": (0.0, 180.0),
+                        "mid": (180.0, 2500.0),
+                        "high": (2500.0, float(sr) * 0.5),
+                    }.get(str(band), (0.0, 0.0))
+                    if hi > lo:
+                        band_mask = (freqs >= lo) & (freqs < hi)
+                        gains[band_mask] *= 1.0 - min(0.24, max(0.0, amount))
+                        masking_reduction = max(masking_reduction, min(0.24, max(0.0, amount)))
+        elif isinstance(authority, dict) and authority:
             overlap = {"low": 0.0, "mid": 0.0, "high": 0.0}
             for ref_id, ref_meta in authority.items():
                 if ref_id == source_id or not isinstance(ref_meta, dict):
