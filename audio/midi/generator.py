@@ -226,6 +226,14 @@ def generate_sequence(request: RenderRequest) -> MidiSequence:
     authorities = _authority_ids(changes, role)
     if role == "bass":
         notes = _bass_notes(chords, root, direction)
+        # A low-end authority owns the foundation; follow its observed pitches
+        # when available instead of inventing a competing root movement.
+        authority_bass = _authority_notes(changes, "low_end")
+        if authority_bass:
+            notes = [
+                MidiNote(min(55, p), float(i), 0.9, 84 + (i % 3) * 4, channel=1)
+                for i, p in enumerate(authority_bass[:8])
+            ]
     elif role == "harmony":
         notes = _harmony_notes(chords, direction)
     elif role == "rhythm":
