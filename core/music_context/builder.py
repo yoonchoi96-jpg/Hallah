@@ -20,6 +20,7 @@ def build_song_context(analyses: list[AudioAnalysis], title: str = "Untitled") -
     if not analyses:
         return ctx
 
+    ctx.analyses = {analysis.asset_id: analysis for analysis in analyses}
     ctx.authorities = infer_authority(analyses)
     relationships, constraints, relationship_conflicts = analyze_relationships(
         analyses, ctx.authorities
