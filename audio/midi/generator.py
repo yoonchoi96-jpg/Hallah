@@ -134,6 +134,7 @@ def _bass_notes(chord_symbols: tuple[str, ...], root: int, direction: str) -> li
 
 def _harmony_notes(chord_symbols: tuple[str, ...], direction: str) -> list[MidiNote]:
     notes: list[MidiNote] = []
+    previous: tuple[int, ...] | None = None
     for i, symbol in enumerate(chord_symbols[:8]):
         chord = parse_chord(symbol)
         center = 60 if direction in ("identity", "natural") else 64
@@ -141,11 +142,16 @@ def _harmony_notes(chord_symbols: tuple[str, ...], direction: str) -> list[MidiN
             center += 7
         if direction == "experimental" and i % 2:
             center += 5
-        voicing = voice_chord(chord, center=center, spread=3)
+        target = voice_chord(chord, center=center, spread=3)
+        if previous is not None and len(previous) == len(target):
+            options = [tuple(p + shift for p in target) for shift in (-12, 0, 12)]
+            voicing = min(options, key=lambda v: sum(abs(a - b) for a, b in zip(previous, v)))
+        else:
+            voicing = target
         for pitch in voicing:
             notes.append(MidiNote(pitch, float(i) + _groove_offset(direction, i), 0.9, 70 + (i % 2) * 8, channel=2))
+        previous = voicing
     return notes
-
 
 def _rhythm_notes(direction: str) -> list[MidiNote]:
     starts = {
