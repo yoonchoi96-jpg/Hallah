@@ -105,7 +105,9 @@ def _authority_onsets(changes: Mapping[str, object]) -> tuple[float, ...]:
 def _authority_notes(changes: Mapping[str, object], dimension: str) -> tuple[int, ...]:
     data = _authority_data(changes, dimension)
     return tuple(int(x) for x in data.get("note_pitches", ())) if data else ()
-\n\ndef _melody_notes(chord_symbols: tuple[str, ...], root: int, scale_name: str | None, direction: str) -> list[MidiNote]:
+
+
+def _melody_notes(chord_symbols: tuple[str, ...], root: int, scale_name: str | None, direction: str) -> list[MidiNote]:
     if not chord_symbols:
         scale = _scale(scale_name)
         degrees = [root + i for i in scale]
