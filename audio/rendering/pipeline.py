@@ -26,6 +26,8 @@ def candidate_to_render_request(candidate: Candidate, context: SongContext, *, k
     if context.key is not None: changes.setdefault("key",context.key)
     if context.scale is not None: changes.setdefault("scale",context.scale)
     if context.chord_progression: changes.setdefault("chord_progression",tuple(context.chord_progression))
+    if context.adaptation_overrides:
+        changes.setdefault("source_adaptations", context.adaptation_overrides)
     authority_data=_authority_analysis(context,changes)
     if authority_data: changes["authority_analysis"]=authority_data
     return build_render_request(candidate.id,context.version,candidate.intent,changes,kind=kind,
