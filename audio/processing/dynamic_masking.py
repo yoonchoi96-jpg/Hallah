@@ -94,7 +94,68 @@ def build_dynamic_envelope(
     }
 
 
-def apply_dynamic_masking(
+def apply_frequency_dynamic_masking(
+    data: np.ndarray,
+    sr: int,
+    source_meta: dict[str, object],
+    reference_meta: dict[str, object],
+    amount: float,
+    bands: tuple[str, ...] = ("low", "mid", "high"),
+    ranges: dict[str, tuple[float, float]] | None = None,
+) -> tuple[np.ndarray, dict[str, object]]:
+    """Duck only overlapping spectral regions when reference events are active."""
+    if len(data) == 0 or sr <= 0 or amount <= 0:
+        return data.astype(np.float32, copy=True), {"applied": False, "events": 0, "bands": ()}
+    duration = len(data) / float(sr)
+    events = _events_seconds(reference_meta, duration)
+    if not events:
+        return data.astype(np.float32, copy=True), {"applied": False, "events": 0, "bands": ()}
+    if ranges is None:
+        ranges = {"low": (20.0, 180.0), "mid": (180.0, 2500.0), "high": (2500.0, sr * 0.5)}
+    envelope, _ = build_dynamic_envelope(len(data), sr, source_meta, reference_meta, amount)
+    frame = min(2048, max(512, 2 ** int(np.log2(max(512, min(len(data), 2048))))))
+    hop = max(128, frame // 4)
+    window = np.hanning(frame).astype(np.float32)
+    padded = np.pad(data.astype(np.float32, copy=False), ((0, max(0, frame - len(data))), (0, 0)))
+    out = np.zeros_like(padded)
+    norm = np.zeros(len(padded), dtype=np.float32)
+    freqs = np.fft.rfftfreq(frame, 1.0 / sr)
+    band_mask = np.zeros(len(freqs), dtype=bool)
+    selected_ranges = {}
+    for band in bands:
+        lo, hi = ranges.get(band, (0.0, 0.0))
+        lo, hi = max(0.0, float(lo)), min(float(sr) * 0.5, float(hi))
+        if hi > lo:
+            band_mask |= (freqs >= lo) & (freqs < hi)
+            selected_ranges[band] = (lo, hi)
+    minimum = max(0.0, 1.0 - min(0.35, float(amount)))
+    for start in range(0, len(data), hop):
+        stop = start + frame
+        chunk = padded[start:stop]
+        if len(chunk) < frame:
+            chunk = np.pad(chunk, ((0, frame - len(chunk)), (0, 0)))
+        center = min(len(data) - 1, start + frame // 2)
+        event_gain = float(envelope[center])
+        gain = np.ones(len(freqs), dtype=np.float32)
+        gain[band_mask] *= minimum + (1.0 - minimum) * event_gain
+        for channel in range(chunk.shape[1]):
+            spectrum = np.fft.rfft(chunk[:, channel] * window)
+            rendered = np.fft.irfft(spectrum * gain, n=frame).astype(np.float32)
+            out[start:stop, channel] += rendered * window
+        norm[start:stop] += window * window
+    valid = norm > 1e-8
+    out[valid] /= norm[valid, None]
+    out[~valid] = 0.0
+    return out[:len(data)].astype(np.float32), {
+        "applied": True,
+        "amount": min(0.35, max(0.0, float(amount))),
+        "events": len(events),
+        "bands": tuple(selected_ranges),
+        "ranges": selected_ranges,
+        "reference_id": str(reference_meta.get("_source_id", "")),
+    }
+
+
     data: np.ndarray,
     sr: int,
     source_meta: dict[str, object],
