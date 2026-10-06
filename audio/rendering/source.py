@@ -83,7 +83,7 @@ class SourceAudioGenerator:
         pitch_allowed = dimension in {"harmony", "melody", "low_end"}
         source_pc, target_pc = self._key_pc(source_key), self._key_pc(target_key)
         semitones = 0.0
-        if source_pc is not None and target_pc is not None:
+        if pitch_allowed and source_pc is not None and target_pc is not None:
             delta = target_pc - source_pc
             semitones = float(((delta + 6) % 12) - 6)
             if abs(semitones) > 1e-6:
