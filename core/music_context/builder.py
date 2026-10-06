@@ -44,6 +44,7 @@ def build_song_context(analyses: list[AudioAnalysis], title: str = "Untitled") -
         ctx.bpm = bpm_source.bpm
     if tonal_source is not None:
         ctx.key, ctx.scale = tonal_source.key, tonal_source.scale
+        ctx.chord_progression = list(tonal_source.chords)
 
     if ctx.conflicts:
         ctx.pending_decisions.extend(ctx.conflicts)
