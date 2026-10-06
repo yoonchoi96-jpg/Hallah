@@ -39,7 +39,7 @@ Authority becomes actionable through first-class constraints:
 - low-end authority → other tracks **avoid** competing in the low end
 - texture authority → other tracks **adapt** to the texture authority
 
-These are guidance for candidate generation, not irreversible edits.
+These are guidance for candidate generation, not irreversible edits. Candidate generation now carries the selected authority dimension/source into render constraints. Generic requests inherit the strongest available authority; explicit requests such as bass, rhythm, harmony, or melody select that dimension directly. MIDI generation uses this authority to choose the generated role and protect its musical register.
 
 ## Example
 
