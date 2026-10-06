@@ -115,3 +115,32 @@ def test_harmony_voice_leading_avoids_large_octave_jumps() -> None:
     first = [n.pitch for n in sequence.notes[:3]]
     second = [n.pitch for n in sequence.notes[3:6]]
     assert max(abs(a - b) for a, b in zip(first, second)) <= 12
+
+
+
+def test_harmony_authority_uses_source_chords() -> None:
+    from core.analysis.contracts import AudioAnalysis
+    from core.music_context.models import MusicalAuthority
+    context = SongContext(
+        version=0, bpm=120, key="C", scale="major",
+        chord_progression=["C", "F", "G", "C"],
+        authorities=[MusicalAuthority("guitar", "harmony", .99)],
+        analyses={"guitar": AudioAnalysis("guitar", chords=("Dm7", "G7", "Cmaj7"))},
+    )
+    candidate = build_candidates(context, "make chord harmony")[0]
+    request = candidate_to_render_request(candidate, context, kind="midi")
+    sequence = generate_sequence(request)
+    assert tuple(n.pitch % 12 for n in sequence.notes[:4]) == parse_chord("Dm7").pitch_classes
+
+
+def test_rhythm_authority_uses_source_onsets() -> None:
+    from core.analysis.contracts import AudioAnalysis
+    from core.music_context.models import MusicalAuthority
+    context = SongContext(
+        version=0, bpm=120,
+        authorities=[MusicalAuthority("drums", "rhythm", .99)],
+        analyses={"drums": AudioAnalysis("drums", onset_beats=(0.0, .75, 1.5, 2.75))},
+    )
+    candidate = build_candidates(context, "make a rhythm")[0]
+    sequence = generate_sequence(candidate_to_render_request(candidate, context, kind="midi"))
+    assert tuple(n.start_beat for n in sequence.notes) == (0.0, .75, 1.5, 2.75)
