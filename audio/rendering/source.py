@@ -166,6 +166,92 @@ class SourceAudioGenerator:
         }
 
     @staticmethod
+    def _candidate_eq_masking(
+        data: np.ndarray,
+        sr: int,
+        changes: dict[str, object],
+        source_id: str,
+    ) -> tuple[np.ndarray, dict[str, float]]:
+        """Deterministic spectral shaping with optional masking awareness."""
+        direction = str(changes.get("direction", "identity"))
+        settings = {
+            "identity": (1.00, 1.00, 1.00),
+            "natural": (0.96, 1.00, 1.04),
+            "bold": (0.90, 1.08, 1.12),
+            "experimental": (1.08, 0.86, 1.20),
+        }.get(direction, (1.00, 1.00, 1.00))
+        low_factor, mid_factor, high_factor = settings
+        rendered = data.astype(np.float32, copy=True)
+        if direction == "identity" or not len(rendered):
+            return rendered, {
+                "low_factor": 1.0,
+                "mid_factor": 1.0,
+                "high_factor": 1.0,
+                "masking_reduction": 0.0,
+            }
+
+        mono = np.mean(rendered, axis=1)
+        n = len(mono)
+        spectrum = np.fft.rfft(mono)
+        freqs = np.fft.rfftfreq(n, 1.0 / sr)
+
+        gains = np.ones_like(freqs)
+        gains[freqs < 180.0] *= low_factor
+        gains[(freqs >= 180.0) & (freqs < 2500.0)] *= mid_factor
+        gains[freqs >= 2500.0] *= high_factor
+
+        masking_reduction = 0.0
+        authority = changes.get("authority_analysis", {})
+        source_meta = authority.get(source_id, {}) if isinstance(authority, dict) else {}
+        source_low = source_meta.get("low_energy_ratio")
+        source_mid = source_meta.get("mid_energy_ratio")
+        source_high = source_meta.get("high_energy_ratio")
+
+        # If another analyzed source occupies the same broad spectral region,
+        # gently carve the current source there. This is a preview heuristic,
+        # not a final mixing/EQ engine.
+        if isinstance(authority, dict) and authority:
+            overlap = {"low": 0.0, "mid": 0.0, "high": 0.0}
+            for ref_id, ref_meta in authority.items():
+                if ref_id == source_id or not isinstance(ref_meta, dict):
+                    continue
+                for band, key in (
+                    ("low", "low_energy_ratio"),
+                    ("mid", "mid_energy_ratio"),
+                    ("high", "high_energy_ratio"),
+                ):
+                    value = ref_meta.get(key)
+                    if isinstance(value, (int, float)):
+                        overlap[band] = max(overlap[band], float(value))
+            source_values = {"low": source_low, "mid": source_mid, "high": source_high}
+            for band, (lo, hi) in {
+                "low": (0.0, 180.0),
+                "mid": (180.0, 2500.0),
+                "high": (2500.0, float(sr) * 0.5),
+            }.items():
+                own = source_values[band]
+                other = overlap[band]
+                if isinstance(own, (int, float)) and float(own) > 0.0 and other > 0.20:
+                    amount = min(0.18, float(other) * 0.24)
+                    if hi > lo:
+                        band_mask = (freqs >= lo) & (freqs < hi)
+                        gains[band_mask] *= 1.0 - amount
+                        masking_reduction = max(masking_reduction, amount)
+
+        transformed = np.fft.irfft(spectrum * gains, n=n).astype(np.float32)
+        delta = transformed - mono
+        rendered += delta[:, None]
+        peak = float(np.max(np.abs(rendered))) if rendered.size else 0.0
+        if peak > 0.98:
+            rendered *= 0.98 / peak
+        return rendered, {
+            "low_factor": low_factor,
+            "mid_factor": mid_factor,
+            "high_factor": high_factor,
+            "masking_reduction": masking_reduction,
+        }
+
+    @staticmethod
     def _source_override(sid: str, changes: dict[str, object]) -> dict[str, object]:
         overrides = changes.get("source_adaptations")
         if isinstance(overrides, dict):
@@ -300,6 +386,7 @@ class SourceAudioGenerator:
         data, candidate_gain = self._apply_candidate_character(data, request.parameter_changes)
         data, tone_settings = self._candidate_tone(data, sr, request.parameter_changes)
         data, space_transient = self._candidate_space_transient(data, sr, request.parameter_changes)
+        data, eq_masking = self._candidate_eq_masking(data, sr, request.parameter_changes, sid)
         key=build_cache_key(request.candidate_id,request.context_version,request.kind,request.parameter_changes,request.source_asset_ids)
         out=self.cache_dir/f"{key}.wav"
         if not out.exists(): self._write(out,data,sr)
@@ -325,5 +412,6 @@ class SourceAudioGenerator:
                 "candidate_gain":candidate_gain,
                 "candidate_tone":tone_settings,
                 "candidate_space_transient":space_transient,
+                "candidate_eq_masking":eq_masking,
             },
         )
