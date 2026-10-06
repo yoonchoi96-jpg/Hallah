@@ -232,6 +232,21 @@ def generate_sequence(request: RenderRequest) -> MidiSequence:
         notes = _rhythm_notes(direction, _authority_onsets(changes))
     else:
         notes = _melody_notes(chords, root, scale_name, direction)
+        # Melody authority is the lead: generated accompaniment stays outside
+        # its observed register and pitch classes rather than competing with it.
+        authority_notes = _authority_notes(changes, "melody")
+        if authority_notes:
+            low, high = min(authority_notes), max(authority_notes)
+            if high - low < 12:
+                notes = [
+                    MidiNote(min(96, n.pitch + 12), n.start_beat, n.duration_beats, n.velocity, n.channel)
+                    for n in notes
+                ]
+            else:
+                notes = [
+                    MidiNote(min(n.pitch, low - 1), n.start_beat, n.duration_beats, n.velocity, n.channel)
+                    for n in notes
+                ]
     notes = _apply_authority_register(notes, role)
     return MidiSequence(tuple(notes), bpm)
 
