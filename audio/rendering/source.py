@@ -5,6 +5,7 @@ import wave
 from pathlib import Path
 import numpy as np
 from audio.cache.keys import build_cache_key
+from audio.processing.masking import build_mix_gain_plan
 from audio.rendering.contracts import RenderRequest, RenderResult
 
 class SourceAudioGenerator:
@@ -217,7 +218,7 @@ class SourceAudioGenerator:
             for decision in relationship_decisions:
                 if not isinstance(decision, dict):
                     continue
-                amount = float(decision.get("amount", 0.0))
+                amount = float(decision.get("allocated_amount", decision.get("amount", 0.0)))
                 ranges = decision.get("ranges", {})
                 for band in decision.get("bands", ()):
                     lo, hi = (
@@ -410,6 +411,8 @@ class SourceAudioGenerator:
         relationship_map = request.parameter_changes.get("mix_relationships", {})
         relationship = relationship_map.get(sid, {}) if isinstance(relationship_map, dict) else {}
         decisions = relationship.get("decisions", ()) if isinstance(relationship, dict) else ()
+        mix_plan = build_mix_gain_plan(auth if isinstance(auth, dict) else {}, relationship_map) if isinstance(relationship_map, dict) else {}
+        decisions = mix_plan.get(sid, decisions)
         from audio.processing.dynamic_masking import apply_dynamic_masking
         for decision in decisions if isinstance(decisions, (list, tuple)) else ():
             if not isinstance(decision, dict):
