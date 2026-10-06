@@ -79,6 +79,21 @@ class SourceAudioGenerator:
         return SourceAudioGenerator._stretch(resampled, 1.0 / factor)
 
     @staticmethod
+    def _candidate_gain(changes: dict[str, object]) -> float:
+        """Deterministic candidate-specific character for V0 auditioning."""
+        direction = str(changes.get("direction", "identity"))
+        return {"identity": 1.0, "natural": 0.89, "bold": 1.12, "experimental": 0.78}.get(direction, 1.0)
+
+    @classmethod
+    def _apply_candidate_character(cls, data: np.ndarray, changes: dict[str, object]) -> tuple[np.ndarray, float]:
+        gain = cls._candidate_gain(changes)
+        rendered = data.astype(np.float32, copy=True) * gain
+        peak = float(np.max(np.abs(rendered))) if rendered.size else 0.0
+        if peak > 0.98:
+            rendered *= 0.98 / peak
+        return rendered, gain
+
+    @staticmethod
     def _source_override(sid: str, changes: dict[str, object]) -> dict[str, object]:
         overrides = changes.get("source_adaptations")
         if isinstance(overrides, dict):
@@ -210,7 +225,7 @@ class SourceAudioGenerator:
             rate=float(tbpm)/float(sbpm)
             if .5<=rate<=2:
                 data=self._stretch(data,rate)
-        key=build_cache_key(request.candidate_id,request.context_version,request.kind,request.parameter_changes,request.source_asset_ids)
+        data, candidate_gain = self._apply_candidate_character(data, request.parameter_changes)\n        key=build_cache_key(request.candidate_id,request.context_version,request.kind,request.parameter_changes,request.source_asset_ids)
         out=self.cache_dir/f"{key}.wav"
         if not out.exists(): self._write(out,data,sr)
         return RenderResult(
@@ -230,6 +245,6 @@ class SourceAudioGenerator:
                 "target_key":target_key,
                 "pitch_shift_semitones":semitones,
                 "pitch_shifted":abs(semitones)>1e-6,
-                "adaptation_reference":reference_meta.get("_source_id"),
+                "adaptation_reference":reference_meta.get("_source_id"),\n                "candidate_direction":str(request.parameter_changes.get("direction", "identity")),\n                "candidate_gain":candidate_gain,
             },
         )
