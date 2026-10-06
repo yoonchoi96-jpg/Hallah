@@ -81,7 +81,31 @@ def _nearest_scale_tone(pc: int, scale_pcs: tuple[int, ...], target: int) -> int
     return min(candidates, key=lambda n: (abs(n - target), n))
 
 
-def _melody_notes(chord_symbols: tuple[str, ...], root: int, scale_name: str | None, direction: str) -> list[MidiNote]:
+
+def _authority_data(changes: Mapping[str, object], dimension: str) -> Mapping[str, object] | None:
+    raw = changes.get("authority_analysis", {})
+    if not isinstance(raw, Mapping):
+        return None
+    for value in raw.values():
+        if isinstance(value, Mapping) and str(value.get("dimension")) == dimension:
+            return value
+    return None
+
+
+def _authority_chords(changes: Mapping[str, object]) -> tuple[str, ...]:
+    data = _authority_data(changes, "harmony")
+    return tuple(str(x) for x in data.get("chords", ())) if data else ()
+
+
+def _authority_onsets(changes: Mapping[str, object]) -> tuple[float, ...]:
+    data = _authority_data(changes, "rhythm")
+    return tuple(float(x) for x in data.get("onset_beats", ())) if data else ()
+
+
+def _authority_notes(changes: Mapping[str, object], dimension: str) -> tuple[int, ...]:
+    data = _authority_data(changes, dimension)
+    return tuple(int(x) for x in data.get("note_pitches", ())) if data else ()
+\n\ndef _melody_notes(chord_symbols: tuple[str, ...], root: int, scale_name: str | None, direction: str) -> list[MidiNote]:
     if not chord_symbols:
         scale = _scale(scale_name)
         degrees = [root + i for i in scale]
@@ -153,8 +177,8 @@ def _harmony_notes(chord_symbols: tuple[str, ...], direction: str) -> list[MidiN
         previous = voicing
     return notes
 
-def _rhythm_notes(direction: str) -> list[MidiNote]:
-    starts = {
+def _rhythm_notes(direction: str, authority_onsets: tuple[float, ...] = ()) -> list[MidiNote]:
+    starts = authority_onsets[:16] if authority_onsets else {
         "identity": (0.0, 1.0, 2.0, 3.0),
         "natural": (0.0, 0.5, 1.5, 2.0, 3.0),
         "bold": (0.0, 0.75, 1.5, 2.75, 3.5),
@@ -194,6 +218,9 @@ def generate_sequence(request: RenderRequest) -> MidiSequence:
     direction = str(changes.get("direction", "identity"))
     bpm = float(changes.get("bpm", 120.0))
     chords = tuple(str(x) for x in changes.get("chord_progression", ()))
+    authority_harmony = _authority_chords(changes)
+    if authority_harmony:
+        chords = authority_harmony
     scale_name = str(changes.get("scale", "major"))
     role = _role_from_constraints(changes) or _role(request.intent)
     authorities = _authority_ids(changes, role)
@@ -202,7 +229,7 @@ def generate_sequence(request: RenderRequest) -> MidiSequence:
     elif role == "harmony":
         notes = _harmony_notes(chords, direction)
     elif role == "rhythm":
-        notes = _rhythm_notes(direction)
+        notes = _rhythm_notes(direction, _authority_onsets(changes))
     else:
         notes = _melody_notes(chords, root, scale_name, direction)
     notes = _apply_authority_register(notes, role)
