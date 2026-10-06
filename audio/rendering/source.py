@@ -76,6 +76,26 @@ class SourceAudioGenerator:
         return SourceAudioGenerator._stretch(resampled, 1.0 / factor)
 
     @staticmethod
+    def _source_override(sid: str, changes: dict[str, object]) -> dict[str, object]:
+        overrides = changes.get("source_adaptations")
+        if isinstance(overrides, dict):
+            value = overrides.get(sid)
+            if isinstance(value, dict):
+                return value
+        return {}
+
+    @classmethod
+    def _reference_meta(cls, sid: str, auth: object, changes: dict[str, object]) -> dict[str, object]:
+        meta = auth.get(sid, {}) if isinstance(auth, dict) else {}
+        override = cls._source_override(sid, changes)
+        reference = override.get("pitch") or override.get("bpm") or override.get("tempo")
+        if isinstance(reference, str) and isinstance(auth, dict):
+            candidate = auth.get(reference)
+            if isinstance(candidate, dict):
+                return candidate
+        return meta
+
+    @staticmethod
     def _key_pc(key: object) -> int | None:
         if not isinstance(key, str):
             return None
