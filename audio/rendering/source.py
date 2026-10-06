@@ -218,12 +218,13 @@ class SourceAudioGenerator:
                 if not isinstance(decision, dict):
                     continue
                 amount = float(decision.get("amount", 0.0))
+                ranges = decision.get("ranges", {})
                 for band in decision.get("bands", ()):
-                    lo, hi = {
-                        "low": (0.0, 180.0),
-                        "mid": (180.0, 2500.0),
-                        "high": (2500.0, float(sr) * 0.5),
-                    }.get(str(band), (0.0, 0.0))
+                    lo, hi = (
+                        ranges.get(str(band), (0.0, 0.0))
+                        if isinstance(ranges, dict)
+                        else (0.0, 0.0)
+                    )
                     if hi > lo:
                         band_mask = (freqs >= lo) & (freqs < hi)
                         gains[band_mask] *= 1.0 - min(0.24, max(0.0, amount))
