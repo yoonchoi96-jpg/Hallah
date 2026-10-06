@@ -33,3 +33,17 @@ def test_rendering_is_cached(tmp_path):
     assert first.cache_key == second.cache_key
     assert first.artifact_ref == second.artifact_ref
     assert build_cache_key("identity-v1", 1, "audio", {"direction": "identity"}) == first.cache_key
+
+
+def test_audio_preview_uses_generated_sequence_not_placeholder(tmp_path):
+    context = SongContext(version=1, bpm=120, key="C", scale="major", chord_progression=["C", "Am", "F", "G"])
+    candidate = build_candidates(context, "make chord harmony")[0]
+    request = candidate_to_render_request(candidate, context)
+    result = MockAudioGenerator(tmp_path).render(request)
+    import wave
+    import numpy as np
+    with wave.open(result.artifact_ref, "rb") as wav:
+        samples = np.frombuffer(wav.readframes(wav.getnframes()), dtype="<i2")
+    assert samples.size > 0
+    assert np.max(np.abs(samples)) > 100
+    assert result.duration_seconds >= 2.0
