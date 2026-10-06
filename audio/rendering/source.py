@@ -406,6 +406,26 @@ class SourceAudioGenerator:
         data, tone_settings = self._candidate_tone(data, sr, request.parameter_changes)
         data, space_transient = self._candidate_space_transient(data, sr, request.parameter_changes)
         data, eq_masking = self._candidate_eq_masking(data, sr, request.parameter_changes, sid)
+        dynamic_masking = {"applied": False, "amount": 0.0, "events": 0}
+        relationship_map = request.parameter_changes.get("mix_relationships", {})
+        relationship = relationship_map.get(sid, {}) if isinstance(relationship_map, dict) else {}
+        decisions = relationship.get("decisions", ()) if isinstance(relationship, dict) else ()
+        from audio.processing.dynamic_masking import apply_dynamic_masking
+        for decision in decisions if isinstance(decisions, (list, tuple)) else ():
+            if not isinstance(decision, dict):
+                continue
+            ref_id = decision.get("reference_id")
+            if not isinstance(ref_id, str):
+                continue
+            ref_meta = auth.get(ref_id) if isinstance(auth, dict) else None
+            if not isinstance(ref_meta, dict):
+                continue
+            ref_meta = dict(ref_meta)
+            ref_meta["_source_id"] = ref_id
+            amount = float(decision.get("amount", 0.0))
+            data, dynamic_masking = apply_dynamic_masking(data, sr, meta, ref_meta, amount)
+            if dynamic_masking.get("applied"):
+                break
         key=build_cache_key(request.candidate_id,request.context_version,request.kind,request.parameter_changes,request.source_asset_ids)
         out=self.cache_dir/f"{key}.wav"
         if not out.exists(): self._write(out,data,sr)
@@ -432,5 +452,6 @@ class SourceAudioGenerator:
                 "candidate_tone":tone_settings,
                 "candidate_space_transient":space_transient,
                 "candidate_eq_masking":eq_masking,
+                "dynamic_masking":dynamic_masking,
             },
         )
