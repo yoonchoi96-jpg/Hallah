@@ -1,4 +1,4 @@
-"""Source audio renderer: preserve source, optionally tempo-adapt with OLA."""
+"""Source audio renderer with authority-aware adaptation."""
 from __future__ import annotations
 import math
 import wave
