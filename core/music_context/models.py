@@ -1,11 +1,12 @@
-"""Canonical domain models for a Hallah song."""
+"""Persistent musical state for a Hallah song."""
 from __future__ import annotations
+from copy import deepcopy
 from dataclasses import dataclass, field
 from typing import Literal
 
 AuthorityDimension = Literal["harmony","rhythm","melody","low_end","texture","arrangement"]
 
-@dataclass(frozen=True)
+@dataclass
 class MusicalAuthority:
     source_id: str
     dimension: AuthorityDimension
@@ -13,21 +14,43 @@ class MusicalAuthority:
     rationale: str = ""
 
 @dataclass
+class ContextDecision:
+    description: str
+    source: str = "user"
+    version: int = 0
+
+@dataclass
 class SongContext:
     version: int = 0
-    title: str | None = None
+    title: str = "Untitled"
     bpm: float | None = None
     key: str | None = None
     scale: str | None = None
-    time_signature: tuple[int, int] = (4, 4)
+    time_signature: str = "4/4"
     genre: str | None = None
-    mood: str | None = None
+    mood: list[str] = field(default_factory=list)
     chord_progression: list[str] = field(default_factory=list)
     authorities: list[MusicalAuthority] = field(default_factory=list)
     decisions: list[str] = field(default_factory=list)
+    dependencies: dict[str, list[str]] = field(default_factory=dict)
+    conflicts: list[str] = field(default_factory=list)
+    pending_decisions: list[str] = field(default_factory=list)
 
     def next_version(self) -> "SongContext":
-        import copy
-        result = copy.deepcopy(self)
-        result.version += 1
-        return result
+        new = deepcopy(self)
+        new.version += 1
+        return new
+
+    def add_dependency(self, source_id: str, target_id: str) -> None:
+        self.dependencies.setdefault(source_id, [])
+        if target_id not in self.dependencies[source_id]:
+            self.dependencies[source_id].append(target_id)
+
+    def add_conflict(self, description: str) -> None:
+        if description not in self.conflicts:
+            self.conflicts.append(description)
+
+    def record_decision(self, description: str, source: str = "user") -> "SongContext":
+        new = self.next_version()
+        new.decisions.append(f"[{source}] {description}")
+        return new
