@@ -14,6 +14,9 @@ class AudioAnalysis:
     scale: str | None = None
     chords: tuple[str, ...] = ()
     role: str | None = None
+    onset_beats: tuple[float, ...] = ()
+    note_pitches: tuple[int, ...] = ()
+    note_durations_beats: tuple[float, ...] = ()
     # Optional event-level signals. Empty means the analyzer did not infer them.
     onset_beats: tuple[float, ...] = ()
     note_pitches: tuple[int, ...] = ()
