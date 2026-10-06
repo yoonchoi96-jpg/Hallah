@@ -140,7 +140,7 @@ def apply_candidate(context: SongContext, candidate: Candidate) -> SongContext:
         )
 
     current = _candidate_in_context(context, candidate.id)
-    if current.status not in {"selected", "preview_ready", "proposed"}:
+    if current.status != "selected":
         raise CandidateLifecycleError(f"Candidate cannot be applied from state: {current.status}.")
 
     new = context.next_version()
