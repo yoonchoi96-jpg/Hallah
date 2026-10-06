@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from dataclasses import replace
-from typing import Iterable
+from typing import Iterable, Literal
 
 from audio.rendering.contracts import CandidateRenderer
 from audio.rendering.pipeline import candidate_to_render_request
@@ -16,7 +16,7 @@ def preview_candidates(
     candidates: Iterable[Candidate],
     renderer: CandidateRenderer,
     *,
-    kind: str = "midi",
+    kind: Literal["audio", "midi"] = "midi",
 ) -> SongContext:
     """Render candidates without advancing musical context version."""
     source = tuple(candidates)
