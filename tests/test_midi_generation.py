@@ -62,3 +62,20 @@ def test_preview_candidates_attaches_midi_without_advancing_context(tmp_path: Pa
     assert all(candidate.status == "preview_ready" for candidate in previewed.candidates)
     assert all(candidate.midi_refs for candidate in previewed.candidates)
     assert len(previewed.candidate_history) == 4
+
+
+def test_natural_direction_adds_scale_passing_tones_and_groove() -> None:
+    context = SongContext(version=0, bpm=120, key="C", scale="major", chord_progression=["C", "F", "G", "C"])
+    candidate = build_candidates(context, "make a melody")[1]
+    sequence = generate_sequence(candidate_to_render_request(candidate, context, kind="midi"))
+    assert any(note.start_beat != round(note.start_beat) for note in sequence.notes)
+    scale_pcs = {0, 2, 4, 5, 7, 9, 11}
+    assert all(note.pitch % 12 in scale_pcs for note in sequence.notes)
+
+
+def test_experimental_direction_has_distinct_timing() -> None:
+    context = SongContext(version=0, bpm=120, key="C", scale="major", chord_progression=["C", "Am", "F", "G"])
+    candidates = build_candidates(context, "make a melody")
+    identity = generate_sequence(candidate_to_render_request(candidates[0], context, kind="midi"))
+    experimental = generate_sequence(candidate_to_render_request(candidates[3], context, kind="midi"))
+    assert tuple(n.start_beat for n in identity.notes) != tuple(n.start_beat for n in experimental.notes)
