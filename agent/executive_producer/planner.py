@@ -7,7 +7,7 @@ from core.music_context.constraints import ContextConstraint, MusicalRelationshi
 
 @dataclass(frozen=True)
 class ContextPatch:
-    operations: tuple[tuple[str,str,str|None], ...]
+    operations: tuple[tuple[str,str,str|None,str|None], ...]
     rationale: str = ""
 
 @dataclass(frozen=True)
@@ -49,20 +49,20 @@ def parse_production_intent(utterance: str) -> ProductionIntent:
 
 def plan_context_patch(context: SongContext, intent: ProductionIntent) -> ContextPatch:
     ops=[]
-    for source,dimension in intent.authority_requests: ops.append(("authority",source,dimension))
+    for source,dimension in intent.authority_requests: ops.append(("authority",source,dimension,None))
     for source,dimension,mode in intent.adaptation_requests: ops.append(("adaptation",source,dimension,mode))
-    for source in intent.fixed_sources: ops.append(("constraint",source,"fixed"))
-    for constraint in intent.constraints: ops.append(("constraint",constraint,"adapt"))
-    if intent.bpm is not None: ops.append(("bpm",str(intent.bpm),None))
+    for source in intent.fixed_sources: ops.append(("constraint",source,"fixed",None))
+    for constraint in intent.constraints: ops.append(("constraint",constraint,"adapt",None))
+    if intent.bpm is not None: ops.append(("bpm",str(intent.bpm),None,None))
     elif intent.authority_requests:
         rhythm_sources=[source for source,dimension in intent.authority_requests if dimension=="rhythm"]
-        if rhythm_sources: ops.append(("bpm",rhythm_sources[0],"follow"))
-    if intent.tonal_source: ops.append(("tonality",intent.tonal_source,"follow"))
+        if rhythm_sources: ops.append(("bpm",rhythm_sources[0],"follow",None))
+    if intent.tonal_source: ops.append(("tonality",intent.tonal_source,"follow",None))
     return ContextPatch(tuple(ops),"Derived from the user's production direction.")
 
 def apply_patch(context: SongContext, patch: ContextPatch) -> SongContext:
     new=context.next_version()
-    for op,target,dimension in patch.operations:
+    for op,target,dimension,mode in patch.operations:
         if op=="bpm":
             if dimension is None: new.bpm=float(target)
             else: new.pending_decisions.append(f"BPM follows {target}.")
@@ -70,6 +70,7 @@ def apply_patch(context: SongContext, patch: ContextPatch) -> SongContext:
             new.pending_decisions.append(f"Resolve tonality from {target}.")
         elif op=="adaptation":
             if dimension is not None:
+                new.adaptation_overrides.setdefault(target, {})[dimension] = True
                 new.pending_decisions.append(f"User override: {target} {dimension} adaptation enabled.")
         elif op=="authority":
             auth=MusicalAuthority(target,dimension,1.0,"Explicit user direction.")
