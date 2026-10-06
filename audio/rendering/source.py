@@ -94,6 +94,37 @@ class SourceAudioGenerator:
         return rendered, gain
 
     @staticmethod
+    def _candidate_tone(data: np.ndarray, sr: int, changes: dict[str, object]) -> tuple[np.ndarray, dict[str, float]]:
+        """Small deterministic tone/dynamics signatures for V0.2 auditioning."""
+        direction = str(changes.get("direction", "identity"))
+        settings = {
+            "identity": (0.0, 0.0, 1.0),
+            "natural": (0.92, 1.06, 0.97),
+            "bold": (1.10, 0.82, 1.08),
+            "experimental": (0.72, 1.22, 0.90),
+        }.get(direction, (0.0, 0.0, 1.0))
+        low_boost, high_boost, dynamics = settings
+        rendered = data.astype(np.float32, copy=True)
+        if direction == "identity":
+            return rendered, {"low_factor": 1.0, "high_factor": 1.0, "dynamics": 1.0}
+        mono = np.mean(rendered, axis=1)
+        n = len(mono)
+        spectrum = np.fft.rfft(mono)
+        freqs = np.fft.rfftfreq(n, 1.0 / sr) if n else np.array([])
+        tilt = np.ones_like(freqs)
+        if n:
+            low = np.exp(-freqs / 220.0)
+            high = 1.0 - np.exp(-freqs / 3200.0)
+            tilt *= 1.0 + (low_boost - 1.0) * low
+            tilt *= 1.0 + (high_boost - 1.0) * high
+            transformed = np.fft.irfft(spectrum * tilt, n=n).astype(np.float32)
+            delta = transformed - mono
+            rendered += delta[:, None]
+        if dynamics != 1.0:
+            rendered = np.tanh(rendered * dynamics) / np.tanh(dynamics)
+        return rendered, {"low_factor": low_boost, "high_factor": high_boost, "dynamics": dynamics}
+
+    @staticmethod
     def _source_override(sid: str, changes: dict[str, object]) -> dict[str, object]:
         overrides = changes.get("source_adaptations")
         if isinstance(overrides, dict):
@@ -225,7 +256,8 @@ class SourceAudioGenerator:
             rate=float(tbpm)/float(sbpm)
             if .5<=rate<=2:
                 data=self._stretch(data,rate)
-        data, candidate_gain = self._apply_candidate_character(data, request.parameter_changes)\n        key=build_cache_key(request.candidate_id,request.context_version,request.kind,request.parameter_changes,request.source_asset_ids)
+        data, candidate_gain = self._apply_candidate_character(data, request.parameter_changes)
+        data, tone_settings = self._candidate_tone(data, sr, request.parameter_changes)\n        key=build_cache_key(request.candidate_id,request.context_version,request.kind,request.parameter_changes,request.source_asset_ids)
         out=self.cache_dir/f"{key}.wav"
         if not out.exists(): self._write(out,data,sr)
         return RenderResult(
@@ -246,5 +278,6 @@ class SourceAudioGenerator:
                 "pitch_shift_semitones":semitones,
                 "pitch_shifted":abs(semitones)>1e-6,
                 "adaptation_reference":reference_meta.get("_source_id"),\n                "candidate_direction":str(request.parameter_changes.get("direction", "identity")),\n                "candidate_gain":candidate_gain,
+                "candidate_tone":tone_settings,
             },
         )
