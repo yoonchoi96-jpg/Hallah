@@ -35,6 +35,8 @@ class WavAnalyzer:
         fundamental, pitch_conf = self._pitch(seg, sr)
         key, scale, key_conf = self._key(mono, sr)
         onset_rate, transient_ratio, attack, decay, sustain, release = self._envelope(mono, sr)
+        onset_beats = self._onset_beats(mono, sr, bpm)
+        note_pitches, note_durations_beats = self._note_events(mono, sr, bpm, role)
         width_value, corr = 0.0, 1.0
         if channels >= 2:
             left, right = x[:, 0], x[:, 1]
@@ -53,6 +55,8 @@ class WavAnalyzer:
         return AudioAnalysis(
             asset_id=str(path), sample_rate=sr, duration_seconds=len(mono) / sr, channels=channels,
             bpm=bpm, key=key, scale=scale, role=role, rms=rms, peak=peak,
+            onset_beats=onset_beats, note_pitches=note_pitches,
+            note_durations_beats=note_durations_beats,
             zero_crossing_rate=zcr, spectral_centroid_hz=centroid, spectral_rolloff_hz=rolloff,
             low_energy_ratio=low, mid_energy_ratio=mid, high_energy_ratio=high,
             stereo_width=width_value, stereo_correlation=corr, onset_rate=onset_rate,
@@ -138,6 +142,106 @@ class WavAnalyzer:
         ]
         scored.sort(reverse=True)
         return scored[0][1], scored[0][2], min(1.0, max(0.0, (scored[0][0] - scored[1][0]) * 8))
+
+    @staticmethod
+    def _onset_beats(x, sr, bpm):
+        """Return conservative onset positions expressed in musical beats."""
+        if bpm is None or len(x) < max(512, int(sr * .05)):
+            return ()
+        hop = max(64, int(sr * .01))
+        frame = max(hop * 4, int(sr * .04))
+        if len(x) < frame:
+            return ()
+        count = 1 + (len(x) - frame) // hop
+        window = np.hanning(frame)
+        energies = np.empty(count, dtype=np.float64)
+        for i in range(count):
+            start = i * hop
+            energies[i] = np.sqrt(np.mean((x[start:start + frame] * window) ** 2))
+        flux = np.maximum(0.0, np.diff(energies, prepend=energies[0]))
+        baseline = np.median(flux)
+        spread = np.median(np.abs(flux - baseline)) + 1e-9
+        threshold = baseline + max(spread * 2.5, float(np.max(flux)) * .08)
+        candidates = np.flatnonzero(flux > threshold)
+        if not len(candidates):
+            return ()
+        min_gap = max(1, int(sr * .08 / hop))
+        selected = []
+        for idx in candidates:
+            if not selected or idx - selected[-1] >= min_gap:
+                selected.append(int(idx))
+            elif flux[idx] > flux[selected[-1]]:
+                selected[-1] = int(idx)
+        beat_seconds = 60.0 / bpm
+        beats = tuple(round((idx * hop / sr) / beat_seconds, 6) for idx in selected)
+        return beats
+
+    @staticmethod
+    def _frame_pitch(frame, sr):
+        """Estimate a monophonic MIDI pitch from one voiced frame."""
+        frame = frame - float(np.mean(frame))
+        if np.sqrt(np.mean(frame * frame)) < 1e-4:
+            return None, 0.0
+        n = len(frame)
+        spectrum = np.abs(np.fft.rfft(frame * np.hanning(n)))
+        freqs = np.fft.rfftfreq(n, 1 / sr)
+        mask = (freqs >= 50) & (freqs <= 1200)
+        if not np.any(mask):
+            return None, 0.0
+        peak_idx = int(np.argmax(spectrum[mask]))
+        peak_hz = float(freqs[mask][peak_idx])
+        if peak_hz <= 0:
+            return None, 0.0
+        # Prefer the spectral fundamental, but reject weak/noisy frames.
+        peak = float(spectrum[mask][peak_idx])
+        median = float(np.median(spectrum[mask])) + 1e-9
+        confidence = min(1.0, max(0.0, (peak / median - 1.0) / 18.0))
+        if confidence < .08:
+            return None, confidence
+        midi = int(round(69 + 12 * math.log2(peak_hz / 440.0)))
+        if not 24 <= midi <= 108:
+            return None, confidence
+        return midi, confidence
+
+    @classmethod
+    def _note_events(cls, x, sr, bpm, role):
+        """Infer conservative monophonic note events for tonal/lead sources."""
+        if bpm is None or role == "drums" or len(x) < int(sr * .08):
+            return (), ()
+        frame = max(1024, int(sr * .046))
+        hop = max(256, int(sr * .0116))
+        if len(x) < frame:
+            return ()
+        notes = []
+        beat_seconds = 60.0 / bpm
+        for start in range(0, len(x) - frame + 1, hop):
+            pitch, confidence = cls._frame_pitch(x[start:start + frame], sr)
+            notes.append((start, pitch if confidence >= .12 else None))
+        events = []
+        active_pitch = None
+        active_start = None
+        last_pitch = None
+        for start, pitch in notes:
+            if pitch != active_pitch:
+                if active_pitch is not None and active_start is not None:
+                    duration = max(hop, start - active_start) / sr / beat_seconds
+                    if duration >= .08:
+                        events.append((active_pitch, duration))
+                active_pitch = pitch
+                active_start = start if pitch is not None else None
+            elif pitch is not None and active_start is None:
+                active_start = start
+            last_pitch = pitch
+        if active_pitch is not None and active_start is not None:
+            duration = max(hop, len(x) - active_start) / sr / beat_seconds
+            if duration >= .08:
+                events.append((active_pitch, duration))
+        # Merge tiny pitch flickers into the preceding event and cap runaway silence.
+        if not events:
+            return (), ()
+        pitches = tuple(int(p) for p, _ in events)
+        durations = tuple(round(float(d), 6) for _, d in events)
+        return pitches, durations
 
     @staticmethod
     def _envelope(x, sr):
