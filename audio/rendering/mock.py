@@ -12,7 +12,7 @@ from pathlib import Path
 import numpy as np
 
 from audio.cache.keys import build_cache_key
-from audio.midi.generator import generate_sequence
+from audio.midi.generator import MidiSequence, generate_sequence
 from audio.rendering.contracts import RenderRequest, RenderResult
 
 
@@ -71,7 +71,7 @@ class MockAudioGenerator:
         return np.sin(phase)
 
     @classmethod
-    def _write_sequence(cls, path: Path, sequence) -> None:
+    def _write_sequence(cls, path: Path, sequence: MidiSequence) -> None:
         sample_rate = 44_100
         beat_seconds = 60.0 / max(1.0, sequence.tempo_bpm)
         end_beat = max((n.start_beat + n.duration_beats for n in sequence.notes), default=4.0)
@@ -96,7 +96,9 @@ class MockAudioGenerator:
                 envelope[:attack] *= np.linspace(0.0, 1.0, attack, endpoint=False)
             if release:
                 envelope[-release:] *= np.linspace(1.0, 0.0, release, endpoint=False)
-            gain = min(1.0, max(0.05, note.velocity / 127.0)) * (0.18 if note.channel != 9 else 0.24)
+            gain = min(1.0, max(0.05, note.velocity / 127.0)) * (
+                0.18 if note.channel != 9 else 0.24
+            )
             mix[start:stop] += signal * envelope * gain
 
         peak = float(np.max(np.abs(mix))) if mix.size else 0.0
