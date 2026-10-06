@@ -25,7 +25,7 @@ class MockAudioGenerator:
     def render(self, request: RenderRequest) -> RenderResult:
         if request.kind != "audio":
             raise ValueError("MockAudioGenerator only renders audio requests.")
-        if request.source_asset_ids:\n            return self.source_generator.render(request)\n        cache_key = build_cache_key(
+        if request.source_asset_ids:\n            if len(request.source_asset_ids) > 1:\n                return self.source_generator.render_mix(request)\n            return self.source_generator.render(request)\n        cache_key = build_cache_key(
             request.candidate_id,
             request.context_version,
             request.kind,
