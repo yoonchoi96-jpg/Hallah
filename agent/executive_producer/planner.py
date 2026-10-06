@@ -36,10 +36,16 @@ def parse_production_intent(utterance: str) -> ProductionIntent:
     if tonal_source:
         authorities += [(tonal_source,"harmony"),(tonal_source,"texture")]
     constraints=[]
+    adaptations=[]
+    # Explicit user language overrides inferred authority defaults.
+    if re.search(r"(드럼|drum).*(피치|키).*(올려|내려|바꿔|맞춰)",text,re.I):
+        adaptations.append(("drums","pitch","user_override"))
+    if re.search(r"(기타|guitar).*(리듬|그루브).*(그대로|따라|기준|가져)",text,re.I):
+        adaptations.append(("guitar","rhythm","user_override"))
     if fixed: constraints += [f"{s}:fixed" for s in fixed]
     if re.search(r"(다른 악기|나머지|여러 악기).*(기타|guitar).*(맞춰|따라)",text,re.I):
         constraints.append("other_tracks:adapt_to:guitar")
-    return ProductionIntent(text,tuple(fixed),tuple(authorities),tuple(constraints),bpm,tonal_source)
+    return ProductionIntent(text,tuple(fixed),tuple(authorities),tuple(constraints),bpm,tonal_source,tuple(adaptations))
 
 def plan_context_patch(context: SongContext, intent: ProductionIntent) -> ContextPatch:
     ops=[]
