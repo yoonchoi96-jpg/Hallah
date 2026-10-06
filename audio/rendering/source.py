@@ -10,6 +10,10 @@ from audio.rendering.contracts import RenderRequest, RenderResult
 class SourceAudioGenerator:
     def __init__(self, cache_dir: str | Path = ".hallah-cache") -> None:
         self.cache_dir = Path(cache_dir)
+
+    @staticmethod
+    def _authority_dimension(meta: dict[str, object]) -> str:
+        return str(meta.get("dimension", ""))
     @staticmethod
     def _read(path: Path):
         with wave.open(str(path),"rb") as w:
