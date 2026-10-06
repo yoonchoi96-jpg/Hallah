@@ -1,6 +1,7 @@
 from pathlib import Path
 
-from audio.midi.generator import DeterministicMidiGenerator
+from audio.midi.generator import DeterministicMidiGenerator, generate_sequence
+from audio.midi.harmony import parse_chord, voice_chord
 from audio.rendering.candidates import preview_candidates
 from audio.rendering.pipeline import candidate_to_render_request
 from core.candidates.engine import build_candidates
@@ -17,8 +18,35 @@ def test_midi_generator_writes_standard_midi(tmp_path: Path) -> None:
     assert data[14:18] == b"MTrk"
 
 
+def test_chord_parser_supports_common_symbols_and_slash_bass() -> None:
+    assert parse_chord("C").pitch_classes == (0, 4, 7)
+    assert parse_chord("Cm7").pitch_classes == (0, 3, 7, 10)
+    assert parse_chord("G7").pitch_classes == (7, 11, 2, 5)
+    chord = parse_chord("Cmaj7/E")
+    assert chord.root_pc == 0
+    assert chord.bass_pc == 4
+    assert chord.pitch_classes == (0, 4, 7, 11)
+
+
+def test_voice_chord_is_ascending_and_near_center() -> None:
+    voicing = voice_chord(parse_chord("F#m7"), center=60)
+    assert list(voicing) == sorted(voicing)
+    assert 55 <= voicing[0] <= 70
+
+
+def test_role_aware_generation_uses_chords_and_registers() -> None:
+    context = SongContext(version=0, bpm=120, key="C", scale="major", chord_progression=["C", "Am", "F", "G7"])
+    bass = build_candidates(context, "make a bass line")[0]
+    melody = build_candidates(context, "make a melody")[0]
+    bass_seq = generate_sequence(candidate_to_render_request(bass, context, kind="midi"))
+    melody_seq = generate_sequence(candidate_to_render_request(melody, context, kind="midi"))
+    assert max(n.pitch for n in bass_seq.notes) < min(n.pitch for n in melody_seq.notes)
+    for note, chord_name in zip(melody_seq.notes, ("C", "Am", "F", "G7")):
+        assert note.pitch % 12 in parse_chord(chord_name).pitch_classes
+
+
 def test_four_directions_produce_distinct_midi_cache_keys(tmp_path: Path) -> None:
-    context = SongContext(version=0, bpm=128, key="A", scale="minor")
+    context = SongContext(version=0, bpm=128, key="A", scale="minor", chord_progression=["Am", "F", "C", "G"])
     candidates = build_candidates(context, "make a bass idea")
     generator = DeterministicMidiGenerator(tmp_path)
     results = [generator.render(candidate_to_render_request(c, context, kind="midi")) for c in candidates]
@@ -26,7 +54,7 @@ def test_four_directions_produce_distinct_midi_cache_keys(tmp_path: Path) -> Non
     assert all(Path(result.artifact_ref).exists() for result in results)
 
 
-def test_preview_candidates_attaches_midi_and_advances_context(tmp_path: Path) -> None:
+def test_preview_candidates_attaches_midi_without_advancing_context(tmp_path: Path) -> None:
     context = SongContext(version=0, bpm=120, key="C", scale="major")
     candidates = build_candidates(context, "make a melody")
     previewed = preview_candidates(context, candidates, DeterministicMidiGenerator(tmp_path))
