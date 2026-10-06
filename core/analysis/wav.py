@@ -34,6 +34,7 @@ class WavAnalyzer:
         bpm, bpm_conf = self._bpm(mono, sr)
         fundamental, pitch_conf = self._pitch(seg, sr)
         key, scale, key_conf = self._key(mono, sr)
+        chords, chord_conf = self._chords(mono, sr, bpm)
         onset_rate, transient_ratio, attack, decay, sustain, release = self._envelope(mono, sr)
         onset_beats = self._onset_beats(mono, sr, bpm)
         note_pitches, note_durations_beats = self._note_events(mono, sr, bpm, role)
@@ -54,7 +55,7 @@ class WavAnalyzer:
         )
         return AudioAnalysis(
             asset_id=str(path), sample_rate=sr, duration_seconds=len(mono) / sr, channels=channels,
-            bpm=bpm, key=key, scale=scale, role=role, rms=rms, peak=peak,
+            bpm=bpm, key=key, scale=scale, chords=chords, role=role, rms=rms, peak=peak,
             onset_beats=onset_beats, note_pitches=note_pitches,
             note_durations_beats=note_durations_beats,
             zero_crossing_rate=zcr, spectral_centroid_hz=centroid, spectral_rolloff_hz=rolloff,
@@ -63,7 +64,7 @@ class WavAnalyzer:
             transient_ratio=transient_ratio, attack_seconds=attack, decay_seconds=decay,
             sustain_level=sustain, release_seconds=release, fundamental_hz=fundamental,
             pitch_confidence=pitch_conf,
-            confidence={"bpm": bpm_conf, "key": key_conf, "pitch": pitch_conf, "role": .45, "spectral": .95},
+            confidence={"bpm": bpm_conf, "key": key_conf, "chord": chord_conf, "pitch": pitch_conf, "role": .45, "spectral": .95},
         )
 
     @staticmethod
@@ -243,6 +244,56 @@ class WavAnalyzer:
         durations = tuple(round(float(d), 6) for _, d in events)
         return pitches, durations
 
+    @staticmethod
+    def _chords(x, sr, bpm):
+        """Conservative chord labeling from beat-window chroma."""
+        if bpm is None or len(x) < int(sr * 0.5):
+            return (), 0.0
+        beat_seconds = 60.0 / bpm
+        window_beats = 2.0
+        window_samples = max(1024, int(round(window_beats * beat_seconds * sr)))
+        if len(x) < window_samples:
+            return (), 0.0
+        names = ("C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B")
+        templates = (("", (0, 4, 7)), ("m", (0, 3, 7)), ("7", (0, 4, 7, 10)),
+                     ("maj7", (0, 4, 7, 11)), ("m7", (0, 3, 7, 10)),
+                     ("dim", (0, 3, 6)), ("sus4", (0, 5, 7)))
+        labels, scores = [], []
+        for start in range(0, len(x) - window_samples + 1, window_samples):
+            frame = x[start:start + window_samples]
+            n = len(frame)
+            spectrum = np.abs(np.fft.rfft(frame * np.hanning(n)))
+            freqs = np.fft.rfftfreq(n, 1 / sr)
+            chroma = np.zeros(12, dtype=np.float64)
+            mask = (freqs >= 55) & (freqs <= 1760)
+            for hz, magnitude in zip(freqs[mask], spectrum[mask]):
+                midi = 69 + 12 * math.log2(float(hz) / 440.0)
+                chroma[int(round(midi)) % 12] += float(magnitude)
+            total = float(chroma.sum())
+            if total <= 1e-9:
+                continue
+            chroma /= total
+            candidates = []
+            for root in range(12):
+                for suffix, intervals in templates:
+                    pcs = {(root + i) % 12 for i in intervals}
+                    inside = sum(chroma[pc] for pc in pcs) / len(pcs)
+                    outside = sum(chroma[pc] for pc in range(12) if pc not in pcs) / max(1, 12 - len(pcs))
+                    candidates.append((inside - 0.35 * outside, names[root] + suffix))
+            candidates.sort(reverse=True)
+            best, label = candidates[0]
+            margin = best - candidates[1][0]
+            if best < 0.12 or margin < 0.015:
+                continue
+            labels.append(label)
+            scores.append(min(1.0, max(0.0, margin * 12)))
+        if not labels:
+            return (), 0.0
+        collapsed = [labels[0]]
+        for label in labels[1:]:
+            if label != collapsed[-1]:
+                collapsed.append(label)
+        return tuple(collapsed), round(float(np.mean(scores)), 3)
     @staticmethod
     def _envelope(x, sr):
         step = max(64, int(sr * .01))
