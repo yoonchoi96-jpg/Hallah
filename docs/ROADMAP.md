@@ -16,10 +16,13 @@
 - Musical Authority inference
 - persistent Song Context
 - candidate generation API
+- authority-aware candidate constraints
+- authority-aware MIDI role selection
 - A/B/C/D candidate model
 
 ## Phase 2 — Real execution
 - MIDI generation/transformation
+- authority-constrained MIDI generation
 - audio transformation
 - offline rendering
 - candidate caching
