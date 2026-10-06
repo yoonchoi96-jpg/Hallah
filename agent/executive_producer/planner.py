@@ -42,6 +42,8 @@ def parse_production_intent(utterance: str) -> ProductionIntent:
         adaptations.append(("drums","pitch","user_override"))
     if re.search(r"(기타|guitar).*(리듬|그루브).*(그대로|따라|기준|가져)",text,re.I):
         adaptations.append(("guitar","rhythm","user_override"))
+    if re.search(r"(드럼|drum).*(bpm|템포).*(기타|guitar).*(맞춰|따라)",text,re.I):
+        adaptations.append(("drums","bpm","guitar"))
     if fixed: constraints += [f"{s}:fixed" for s in fixed]
     if re.search(r"(다른 악기|나머지|여러 악기).*(기타|guitar).*(맞춰|따라)",text,re.I):
         constraints.append("other_tracks:adapt_to:guitar")
@@ -70,7 +72,7 @@ def apply_patch(context: SongContext, patch: ContextPatch) -> SongContext:
             new.pending_decisions.append(f"Resolve tonality from {target}.")
         elif op=="adaptation":
             if dimension is not None:
-                new.adaptation_overrides.setdefault(target, {})[dimension] = True
+                new.adaptation_overrides.setdefault(target, {})[dimension] = mode or True
                 new.pending_decisions.append(f"User override: {target} {dimension} adaptation enabled.")
         elif op=="authority":
             auth=MusicalAuthority(target,dimension,1.0,"Explicit user direction.")
