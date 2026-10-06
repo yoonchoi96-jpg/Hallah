@@ -108,6 +108,26 @@ class SourceAudioGenerator:
                  "F#":6,"Gb":6,"G":7,"G#":8,"Ab":8,"A":9,"A#":10,"Bb":10,"B":11}
         return names.get(key.strip())
 
+    def render_stems(self, request: RenderRequest) -> tuple[RenderResult, ...]:
+        """Render every source asset independently as a non-destructive stem set."""
+        if request.kind != "audio":
+            raise ValueError("SourceAudioGenerator only renders audio.")
+        if not request.source_asset_ids:
+            raise ValueError("source_asset_ids required")
+        results = []
+        for sid in request.source_asset_ids:
+            stem_request = RenderRequest(
+                candidate_id=request.candidate_id,
+                context_version=request.context_version,
+                kind=request.kind,
+                intent=request.intent,
+                source_asset_ids=(sid,),
+                parameter_changes=request.parameter_changes,
+                output_format=request.output_format,
+            )
+            results.append(self.render(stem_request))
+        return tuple(results)
+
     def render(self,request:RenderRequest)->RenderResult:
         if request.kind!="audio": raise ValueError("SourceAudioGenerator only renders audio.")
         if not request.source_asset_ids: raise ValueError("source_asset_ids required")
