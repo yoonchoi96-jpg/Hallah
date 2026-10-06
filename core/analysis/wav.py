@@ -36,6 +36,13 @@ class WavAnalyzer:
         key, scale, key_conf = self._key(mono, sr)
         chords, chord_conf = self._chords(mono, sr, bpm)
         onset_rate, transient_ratio, attack, decay, sustain, release = self._envelope(mono, sr)
+        role = (
+            "bass" if band(20, 250) > .48 and centroid < 700
+            else "drums" if onset_rate > 2.5 and zcr > .08
+            else "vocal/lead" if centroid > 2200 and zcr > .06
+            else "guitar/piano" if band(250, 4000) > band(20, 250) and band(250, 4000) > band(4000, 20000)
+            else "texture"
+        )
         onset_beats = self._onset_beats(mono, sr, bpm)
         note_pitches, note_durations_beats = self._note_events(mono, sr, bpm, role)
         width_value, corr = 0.0, 1.0
@@ -46,13 +53,6 @@ class WavAnalyzer:
             side_power = float(np.mean(((left - right) * .5) ** 2))
             width_value = min(1.0, side_power / (mid_power + side_power + 1e-12))
         low, mid, high = band(20, 250), band(250, 4000), band(4000, 20000)
-        role = (
-            "bass" if low > .48 and centroid < 700
-            else "drums" if onset_rate > 2.5 and zcr > .08
-            else "vocal/lead" if centroid > 2200 and zcr > .06
-            else "guitar/piano" if mid > low and mid > high
-            else "texture"
-        )
         return AudioAnalysis(
             asset_id=str(path), sample_rate=sr, duration_seconds=len(mono) / sr, channels=channels,
             bpm=bpm, key=key, scale=scale, chords=chords, role=role, rms=rms, peak=peak,
@@ -136,23 +136,18 @@ class WavAnalyzer:
             (np.array([6.35,2.23,3.48,2.33,4.38,4.09,2.52,5.19,2.39,3.66,2.29,2.88]), "major"),
             (np.array([6.33,2.68,3.52,5.38,2.60,3.53,2.54,4.75,3.98,2.69,3.34,3.17]), "minor"),
         )
-        scored = [
-            (float(np.dot(chroma, np.roll(profile, shift))), names[shift], mode)
-            for profile, mode in profiles
-            for shift in range(12)
-        ]
+        scored = [(float(np.dot(chroma, np.roll(profile, shift))), names[shift], mode) for profile, mode in profiles for shift in range(12)]
         scored.sort(reverse=True)
         return scored[0][1], scored[0][2], min(1.0, max(0.0, (scored[0][0] - scored[1][0]) * 8))
 
     @staticmethod
     def _onset_beats(x, sr, bpm):
-        """Return conservative onset positions expressed in musical beats."""
         if bpm is None or len(x) < max(512, int(sr * .05)):
             return ()
         hop = max(64, int(sr * .01))
         frame = max(hop * 4, int(sr * .04))
         if len(x) < frame:
-            return (), ()
+            return ()
         count = 1 + (len(x) - frame) // hop
         window = np.hanning(frame)
         energies = np.empty(count, dtype=np.float64)
@@ -174,12 +169,10 @@ class WavAnalyzer:
             elif flux[idx] > flux[selected[-1]]:
                 selected[-1] = int(idx)
         beat_seconds = 60.0 / bpm
-        beats = tuple(round((idx * hop / sr) / beat_seconds, 6) for idx in selected)
-        return beats
+        return tuple(round((idx * hop / sr) / beat_seconds, 6) for idx in selected)
 
     @staticmethod
     def _frame_pitch(frame, sr):
-        """Estimate a monophonic MIDI pitch from one voiced frame."""
         frame = frame - float(np.mean(frame))
         if np.sqrt(np.mean(frame * frame)) < 1e-4:
             return None, 0.0
@@ -193,7 +186,6 @@ class WavAnalyzer:
         peak_hz = float(freqs[mask][peak_idx])
         if peak_hz <= 0:
             return None, 0.0
-        # Prefer the spectral fundamental, but reject weak/noisy frames.
         peak = float(spectrum[mask][peak_idx])
         median = float(np.median(spectrum[mask])) + 1e-9
         confidence = min(1.0, max(0.0, (peak / median - 1.0) / 18.0))
@@ -206,13 +198,12 @@ class WavAnalyzer:
 
     @classmethod
     def _note_events(cls, x, sr, bpm, role):
-        """Infer conservative monophonic note events for tonal/lead sources."""
         if bpm is None or role == "drums" or len(x) < int(sr * .08):
             return (), ()
         frame = max(1024, int(sr * .046))
         hop = max(256, int(sr * .0116))
         if len(x) < frame:
-            return ()
+            return (), ()
         notes = []
         beat_seconds = 60.0 / bpm
         for start in range(0, len(x) - frame + 1, hop):
@@ -221,7 +212,6 @@ class WavAnalyzer:
         events = []
         active_pitch = None
         active_start = None
-        last_pitch = None
         for start, pitch in notes:
             if pitch != active_pitch:
                 if active_pitch is not None and active_start is not None:
@@ -232,43 +222,34 @@ class WavAnalyzer:
                 active_start = start if pitch is not None else None
             elif pitch is not None and active_start is None:
                 active_start = start
-            last_pitch = pitch
         if active_pitch is not None and active_start is not None:
             duration = max(hop, len(x) - active_start) / sr / beat_seconds
             if duration >= .08:
                 events.append((active_pitch, duration))
-        # Merge tiny pitch flickers into the preceding event and cap runaway silence.
         if not events:
             return (), ()
-        pitches = tuple(int(p) for p, _ in events)
-        durations = tuple(round(float(d), 6) for _, d in events)
-        return pitches, durations
+        return tuple(int(p) for p, _ in events), tuple(round(float(d), 6) for _, d in events)
 
     @staticmethod
     def _chords(x, sr, bpm):
-        """Conservative chord labeling from beat-window chroma."""
         if bpm is None or len(x) < int(sr * 0.5):
             return (), 0.0
         beat_seconds = 60.0 / bpm
-        window_beats = 2.0
-        window_samples = max(1024, int(round(window_beats * beat_seconds * sr)))
+        window_samples = max(1024, int(round(2.0 * beat_seconds * sr)))
         if len(x) < window_samples:
             return (), 0.0
         names = ("C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B")
-        templates = (("", (0, 4, 7)), ("m", (0, 3, 7)), ("7", (0, 4, 7, 10)),
-                     ("maj7", (0, 4, 7, 11)), ("m7", (0, 3, 7, 10)),
-                     ("dim", (0, 3, 6)), ("sus4", (0, 5, 7)))
+        templates = (("", (0,4,7)), ("m", (0,3,7)), ("7", (0,4,7,10)), ("maj7", (0,4,7,11)),
+                     ("m7", (0,3,7,10)), ("dim", (0,3,6)), ("sus4", (0,5,7)))
         labels, scores = [], []
         for start in range(0, len(x) - window_samples + 1, window_samples):
             frame = x[start:start + window_samples]
-            n = len(frame)
-            spectrum = np.abs(np.fft.rfft(frame * np.hanning(n)))
-            freqs = np.fft.rfftfreq(n, 1 / sr)
-            chroma = np.zeros(12, dtype=np.float64)
+            spectrum = np.abs(np.fft.rfft(frame * np.hanning(len(frame))))
+            freqs = np.fft.rfftfreq(len(frame), 1 / sr)
+            chroma = np.zeros(12)
             mask = (freqs >= 55) & (freqs <= 1760)
             for hz, magnitude in zip(freqs[mask], spectrum[mask]):
-                midi = 69 + 12 * math.log2(float(hz) / 440.0)
-                chroma[int(round(midi)) % 12] += float(magnitude)
+                chroma[int(round(69 + 12 * math.log2(float(hz) / 440))) % 12] += float(magnitude)
             total = float(chroma.sum())
             if total <= 1e-9:
                 continue
@@ -278,14 +259,12 @@ class WavAnalyzer:
                 for suffix, intervals in templates:
                     pcs = {(root + i) % 12 for i in intervals}
                     inside = sum(chroma[pc] for pc in pcs) / len(pcs)
-                    outside = sum(chroma[pc] for pc in range(12) if pc not in pcs) / max(
-                        1, 12 - len(pcs)
-                    )
-                    candidates.append((inside - 0.35 * outside, names[root] + suffix))
+                    outside = sum(chroma[pc] for pc in range(12) if pc not in pcs) / max(1, 12-len(pcs))
+                    candidates.append((inside - .35 * outside, names[root] + suffix))
             candidates.sort(reverse=True)
             best, label = candidates[0]
             margin = best - candidates[1][0]
-            if best < 0.12 or margin < 0.015:
+            if best < .12 or margin < .015:
                 continue
             labels.append(label)
             scores.append(min(1.0, max(0.0, margin * 12)))
@@ -310,16 +289,11 @@ class WavAnalyzer:
         active = np.flatnonzero(envelope > threshold)
         if len(active) == 0:
             return 0.0, 0.0, 0.0, 0.0, 0.0, 0.0
-        onset_rate = float(
-            np.count_nonzero((envelope[1:] > threshold) & (envelope[1:] > envelope[:-1]))
-            / (len(x) / sr)
-        )
+        onset_rate = float(np.count_nonzero((envelope[1:] > threshold) & (envelope[1:] > envelope[:-1])) / (len(x) / sr))
         attack = peak_idx * step / sr
         active_end = int(active[-1])
         decay = max(0.0, (active_end - peak_idx) * step / sr)
-        sustain = float(
-            np.median(envelope[active[min(len(active) - 1, len(active) // 2):]]) / peak_value
-        )
+        sustain = float(np.median(envelope[active[min(len(active)-1, len(active)//2):]]) / peak_value)
         release = max(0.0, (len(envelope) - active_end - 1) * step / sr)
         transient_ratio = min(1.0, max(0.0, (peak_value - float(np.median(envelope))) / peak_value))
         return onset_rate, transient_ratio, attack, decay, sustain, release
