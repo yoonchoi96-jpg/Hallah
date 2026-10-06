@@ -18,6 +18,7 @@ class ProductionIntent:
     constraints: tuple[str,...] = ()
     bpm: float | None = None
     tonal_source: str | None = None
+    adaptation_requests: tuple[tuple[str,str,str], ...] = ()
 
 def parse_production_intent(utterance: str) -> ProductionIntent:
     text=utterance.strip()
