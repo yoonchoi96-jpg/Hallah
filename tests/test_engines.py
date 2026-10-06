@@ -34,3 +34,21 @@ def test_default_ep_does_not_mutate_context():
     plan = DefaultExecutiveProducer().plan(ProductionRequest("make it darker", context))
     assert context.version == 2
     assert len(plan.candidates) == 4
+
+
+def test_candidates_preserve_authority_for_requested_dimension():
+    context = SongContext(
+        version=3,
+        authorities=[
+            __import__("core.music_context.models", fromlist=["MusicalAuthority"]).MusicalAuthority(
+                source_id="guitar-loop", dimension="harmony", confidence=0.97
+            ),
+            __import__("core.music_context.models", fromlist=["MusicalAuthority"]).MusicalAuthority(
+                source_id="drum-loop", dimension="rhythm", confidence=0.91
+            ),
+        ],
+    )
+    candidate = build_candidates(context, "make a chord progression")
+    constraints = candidate[0].parameter_changes["constraints"]
+    assert "authority:harmony:guitar-loop:0.970" in constraints
+    assert "authority:rhythm:drum-loop:0.910" not in constraints
