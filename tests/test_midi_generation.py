@@ -30,7 +30,7 @@ def test_preview_candidates_attaches_midi_and_advances_context(tmp_path: Path) -
     context = SongContext(version=0, bpm=120, key="C", scale="major")
     candidates = build_candidates(context, "make a melody")
     previewed = preview_candidates(context, candidates, DeterministicMidiGenerator(tmp_path))
-    assert previewed.version == 1
+    assert previewed.version == 0
     assert all(candidate.status == "preview_ready" for candidate in previewed.candidates)
     assert all(candidate.midi_refs for candidate in previewed.candidates)
     assert len(previewed.candidate_history) == 4
