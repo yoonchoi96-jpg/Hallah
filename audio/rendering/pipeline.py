@@ -15,6 +15,7 @@ def candidate_to_render_request(candidate: Candidate, context: SongContext, *, k
     if context.bpm is not None: changes.setdefault("bpm", context.bpm)
     if context.key is not None: changes.setdefault("key", context.key)
     if context.scale is not None: changes.setdefault("scale", context.scale)
+    if context.chord_progression: changes.setdefault("chord_progression", tuple(context.chord_progression))
     return build_render_request(
         candidate.id, context.version, candidate.intent, changes,
         kind=kind, output_format=("mid" if kind == "midi" else "wav"),
