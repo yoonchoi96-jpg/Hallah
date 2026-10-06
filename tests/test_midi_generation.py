@@ -100,3 +100,18 @@ def test_generic_candidate_inherits_strongest_musical_authority() -> None:
     sequence = generate_sequence(request)
     assert "role:harmony" in request.parameter_changes["constraints"]
     assert all(note.channel == 2 for note in sequence.notes)
+
+
+def test_harmony_voice_leading_avoids_large_octave_jumps() -> None:
+    context = SongContext(
+        version=0,
+        bpm=120,
+        key="C",
+        scale="major",
+        chord_progression=["C", "G", "Am", "F", "C", "G", "Am", "F"],
+    )
+    candidate = build_candidates(context, "make chord harmony")[0]
+    sequence = generate_sequence(candidate_to_render_request(candidate, context, kind="midi"))
+    first = [n.pitch for n in sequence.notes[:3]]
+    second = [n.pitch for n in sequence.notes[3:6]]
+    assert max(abs(a - b) for a, b in zip(first, second)) <= 12
