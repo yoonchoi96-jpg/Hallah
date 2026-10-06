@@ -144,3 +144,37 @@ def test_rhythm_authority_uses_source_onsets() -> None:
     candidate = build_candidates(context, "make a rhythm")[0]
     sequence = generate_sequence(candidate_to_render_request(candidate, context, kind="midi"))
     assert tuple(n.start_beat for n in sequence.notes) == (0.0, .75, 1.5, 2.75)
+
+
+def test_melody_authority_pushes_generated_line_out_of_lead_register() -> None:
+    from core.analysis.contracts import AudioAnalysis
+    from core.music_context.models import MusicalAuthority
+    context = SongContext(
+        version=0,
+        bpm=120,
+        key="C",
+        scale="major",
+        chord_progression=["C", "Am", "F", "G"],
+        authorities=[MusicalAuthority("vocal", "melody", .99)],
+        analyses={"vocal": AudioAnalysis("vocal", note_pitches=(72, 74, 76, 77))},
+    )
+    candidate = build_candidates(context, "make something")[0]
+    sequence = generate_sequence(candidate_to_render_request(candidate, context, kind="midi"))
+    assert all(note.pitch < 72 for note in sequence.notes)
+
+
+def test_low_end_authority_pitches_drive_bass() -> None:
+    from core.analysis.contracts import AudioAnalysis
+    from core.music_context.models import MusicalAuthority
+    context = SongContext(
+        version=0,
+        bpm=120,
+        key="C",
+        scale="major",
+        chord_progression=["C", "F", "G", "C"],
+        authorities=[MusicalAuthority("bass", "low_end", .99)],
+        analyses={"bass": AudioAnalysis("bass", note_pitches=(36, 40, 43, 36))},
+    )
+    candidate = build_candidates(context, "make a bass line")[0]
+    sequence = generate_sequence(candidate_to_render_request(candidate, context, kind="midi"))
+    assert tuple(n.pitch for n in sequence.notes) == (36, 40, 43, 36)
