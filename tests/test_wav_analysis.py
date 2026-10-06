@@ -44,3 +44,18 @@ def test_event_fields_exist_and_are_aligned(tmp_path):
     assert isinstance(result.note_pitches, tuple)
     assert isinstance(result.note_durations_beats, tuple)
     assert len(result.note_pitches) == len(result.note_durations_beats)
+
+
+def test_chord_extractor_labels_simple_harmony(tmp_path):
+    sr = 44100
+    bpm = 120.0
+    beat = 60.0 / bpm
+    length = int(sr * beat * 4)
+    t = np.arange(length) / sr
+    signal = np.zeros(length, dtype=np.float64)
+    for hz in (261.63, 329.63, 392.00):
+        signal += 0.3 * np.sin(2 * math.pi * hz * t)
+    chords, confidence = WavAnalyzer._chords(signal, sr, bpm)
+    assert chords
+    assert chords[0].startswith("C")
+    assert confidence >= 0
