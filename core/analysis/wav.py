@@ -152,7 +152,7 @@ class WavAnalyzer:
         hop = max(64, int(sr * .01))
         frame = max(hop * 4, int(sr * .04))
         if len(x) < frame:
-            return ()
+            return (), ()
         count = 1 + (len(x) - frame) // hop
         window = np.hanning(frame)
         energies = np.empty(count, dtype=np.float64)
@@ -278,7 +278,9 @@ class WavAnalyzer:
                 for suffix, intervals in templates:
                     pcs = {(root + i) % 12 for i in intervals}
                     inside = sum(chroma[pc] for pc in pcs) / len(pcs)
-                    outside = sum(chroma[pc] for pc in range(12) if pc not in pcs) / max(1, 12 - len(pcs))
+                    outside = sum(chroma[pc] for pc in range(12) if pc not in pcs) / max(
+                        1, 12 - len(pcs)
+                    )
                     candidates.append((inside - 0.35 * outside, names[root] + suffix))
             candidates.sort(reverse=True)
             best, label = candidates[0]
@@ -294,6 +296,7 @@ class WavAnalyzer:
             if label != collapsed[-1]:
                 collapsed.append(label)
         return tuple(collapsed), round(float(np.mean(scores)), 3)
+
     @staticmethod
     def _envelope(x, sr):
         step = max(64, int(sr * .01))
@@ -307,11 +310,16 @@ class WavAnalyzer:
         active = np.flatnonzero(envelope > threshold)
         if len(active) == 0:
             return 0.0, 0.0, 0.0, 0.0, 0.0, 0.0
-        onset_rate = float(np.count_nonzero((envelope[1:] > threshold) & (envelope[1:] > envelope[:-1])) / (len(x) / sr))
+        onset_rate = float(
+            np.count_nonzero((envelope[1:] > threshold) & (envelope[1:] > envelope[:-1]))
+            / (len(x) / sr)
+        )
         attack = peak_idx * step / sr
         active_end = int(active[-1])
         decay = max(0.0, (active_end - peak_idx) * step / sr)
-        sustain = float(np.median(envelope[active[min(len(active)-1, len(active)//2):]]) / peak_value)
+        sustain = float(
+            np.median(envelope[active[min(len(active) - 1, len(active) // 2):]]) / peak_value
+        )
         release = max(0.0, (len(envelope) - active_end - 1) * step / sr)
         transient_ratio = min(1.0, max(0.0, (peak_value - float(np.median(envelope))) / peak_value))
         return onset_rate, transient_ratio, attack, decay, sustain, release
