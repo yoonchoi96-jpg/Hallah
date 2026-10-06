@@ -56,3 +56,12 @@ audio ←  plugins
 audio ←  rendering
 ui    → core/agent
 ```
+
+
+## Candidate lifecycle
+
+Candidates are immutable proposals tied to the SongContext version from which they were generated. Their lifecycle is `proposed → preview_ready → selected → applied`, with `rejected` and `superseded` terminal states. Lifecycle transitions return new candidate values rather than mutating the existing candidate.
+
+Candidate validation is deterministic and checks context-version lineage, fixed constraints, and dimension-specific musical authorities. Applying a candidate always creates a new SongContext version; the parent context remains unchanged. A candidate generated for an older context cannot be reused on an unrelated newer context.
+
+Selection and application are separate transitions so future audio/MIDI preview generation can occur between them. The candidate history and decision log preserve what was selected, rejected, and applied.
