@@ -17,6 +17,7 @@ class ContextConstraint:
     reference_id: str | None = None
     dimension: str | None = None
     reason: str = ""
+    parameters: tuple[str, ...] = ()
 
 @dataclass(frozen=True)
 class MusicalRelationship:
