@@ -413,7 +413,6 @@ class SourceAudioGenerator:
         decisions = relationship.get("decisions", ()) if isinstance(relationship, dict) else ()
         mix_plan = build_mix_gain_plan(auth if isinstance(auth, dict) else {}, relationship_map) if isinstance(relationship_map, dict) else {}
         decisions = mix_plan.get(sid, decisions)
-        from audio.processing.dynamic_masking import apply_dynamic_masking
         for decision in decisions if isinstance(decisions, (list, tuple)) else ():
             if not isinstance(decision, dict):
                 continue
@@ -425,18 +424,17 @@ class SourceAudioGenerator:
                 continue
             ref_meta = dict(ref_meta)
             ref_meta["_source_id"] = ref_id
-            amount = float(decision.get("amount", 0.0))
-            data, dynamic_masking = apply_dynamic_masking(data, sr, meta, ref_meta, amount)
+            amount = float(decision.get("allocated_amount", decision.get("amount", 0.0)))
+            ranges = decision.get("ranges", {})
+            bands = tuple(str(b) for b in decision.get("bands", ()))
+            from audio.processing.dynamic_masking import apply_spectral_curve_dynamic_masking
+            data, dynamic_masking = apply_spectral_curve_dynamic_masking(
+                data, sr, meta, ref_meta, amount, bands=bands,
+                ranges=ranges if isinstance(ranges, dict) else None,
+            )
             if dynamic_masking.get("applied"):
-                ranges = decision.get("ranges", {})
-                bands = tuple(str(b) for b in decision.get("bands", ()))
-                from audio.processing.dynamic_masking import apply_frequency_dynamic_masking
-                from audio.processing.dynamic_masking import apply_spectral_curve_dynamic_masking
-                data, frequency_dynamic = apply_spectral_curve_dynamic_masking(
-                    data, sr, meta, ref_meta, amount, bands=bands,
-                    ranges=ranges if isinstance(ranges, dict) else None,
-                )
-                dynamic_masking["frequency"] = frequency_dynamic
+                dynamic_masking["allocated_amount"] = amount
+                dynamic_masking["budget_remaining"] = decision.get("budget_remaining")
                 break
         key=build_cache_key(request.candidate_id,request.context_version,request.kind,request.parameter_changes,request.source_asset_ids)
         out=self.cache_dir/f"{key}.wav"
