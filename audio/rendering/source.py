@@ -431,7 +431,8 @@ class SourceAudioGenerator:
                 ranges = decision.get("ranges", {})
                 bands = tuple(str(b) for b in decision.get("bands", ()))
                 from audio.processing.dynamic_masking import apply_frequency_dynamic_masking
-                data, frequency_dynamic = apply_frequency_dynamic_masking(
+                from audio.processing.dynamic_masking import apply_spectral_curve_dynamic_masking
+                data, frequency_dynamic = apply_spectral_curve_dynamic_masking(
                     data, sr, meta, ref_meta, amount, bands=bands,
                     ranges=ranges if isinstance(ranges, dict) else None,
                 )
