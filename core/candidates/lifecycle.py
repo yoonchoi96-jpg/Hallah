@@ -49,7 +49,12 @@ def validate_candidate(context: SongContext, candidate: Candidate) -> CandidateV
     conflicts: list[str] = []
     errors: list[str] = []
 
-    if candidate.parent_context_version != context.version:
+    expected_parent = context.version
+    selected_from_previous_version = (
+        candidate.status == "selected"
+        and candidate.parent_context_version == context.version - 1
+    )
+    if candidate.parent_context_version != expected_parent and not selected_from_previous_version:
         errors.append(
             f"Stale candidate: candidate belongs to context v{candidate.parent_context_version}, "
             f"current context is v{context.version}."
