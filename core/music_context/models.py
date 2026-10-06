@@ -5,6 +5,7 @@ from copy import deepcopy
 from dataclasses import dataclass, field
 from typing import Literal
 
+from core.analysis.contracts import AudioAnalysis
 from core.candidates.models import Candidate
 from core.music_context.constraints import ContextConstraint, MusicalRelationship
 
@@ -30,6 +31,7 @@ class SongContext:
     genre: str | None = None
     mood: list[str] = field(default_factory=list)
     chord_progression: list[str] = field(default_factory=list)
+    analyses: dict[str, AudioAnalysis] = field(default_factory=dict)
     authorities: list[MusicalAuthority] = field(default_factory=list)
     decisions: list[str] = field(default_factory=list)
     dependencies: dict[str, list[str]] = field(default_factory=dict)
