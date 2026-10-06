@@ -62,12 +62,31 @@ def _role(intent: str) -> str:
     return "melody"
 
 
-def _melody_notes(chord_symbols: tuple[str, ...], root: int, direction: str) -> list[MidiNote]:
+def _groove_offset(direction: str, index: int) -> float:
+    patterns = {
+        "identity": (0.0, 0.0, 0.0, 0.0),
+        "natural": (0.0, 0.02, 0.0, 0.01),
+        "bold": (0.0, -0.04, 0.03, -0.02),
+        "experimental": (0.0, 0.08, -0.03, 0.11),
+    }
+    return patterns.get(direction, patterns["identity"])[index % 4]
+
+
+def _scale_pitch_classes(root: int, scale_name: str | None) -> tuple[int, ...]:
+    return tuple((root + interval) % 12 for interval in _scale(scale_name))
+
+
+def _nearest_scale_tone(pc: int, scale_pcs: tuple[int, ...], target: int) -> int:
+    candidates = [n for n in range(target - 12, target + 25) if n % 12 in scale_pcs]
+    return min(candidates, key=lambda n: (abs(n - target), n))
+
+
+def _melody_notes(chord_symbols: tuple[str, ...], root: int, scale_name: str | None, direction: str) -> list[MidiNote]:
     if not chord_symbols:
-        scale = _scale("major")
+        scale = _scale(scale_name)
         degrees = [root + i for i in scale]
         pattern = (0, 1, 2, 4, 2, 1, 3, 4)
-        return [MidiNote(degrees[d % 7] + 12, i * 0.5, 0.5, 76) for i, d in enumerate(pattern)]
+        return [MidiNote(degrees[d % 7] + 12, i * 0.5 + _groove_offset(direction, i), 0.5, 76) for i, d in enumerate(pattern)]
     patterns = {
         "identity": (0, 1, 2, 1, 0, 2, 1, 0),
         "natural": (0, 1, 2, 3, 2, 1, 2, 3),
@@ -82,12 +101,16 @@ def _melody_notes(chord_symbols: tuple[str, ...], root: int, direction: str) -> 
         chord = parse_chord(chord_symbols[i % len(chord_symbols)])
         tones = chord.pitch_classes
         target = previous if direction in ("identity", "natural") else 67 + (i % 2) * 7
-        pitch = nearest_pitch(tones[index % len(tones)], target)
+        chord_tone = nearest_pitch(tones[index % len(tones)], target)
+        scale_pcs = _scale_pitch_classes(root, scale_name)
+        pitch = chord_tone
+        if direction == "natural" and i % 3 == 2:
+            pitch = _nearest_scale_tone(chord_tone + (-1 if i % 2 else 1), scale_pcs, chord_tone)
         if direction == "experimental" and i in (3, 6):
             pitch += 1
         pitch = max(60, min(84, pitch))
         duration = 0.5 if direction != "identity" else 1.0
-        notes.append(MidiNote(pitch, beat, duration, min(118, 76 + (i % 3) * 7)))
+        notes.append(MidiNote(pitch, beat + _groove_offset(direction, i), duration, min(118, 76 + (i % 3) * 7)))
         beat += duration
         previous = pitch
     return notes
@@ -105,7 +128,7 @@ def _bass_notes(chord_symbols: tuple[str, ...], root: int, direction: str) -> li
         elif direction == "experimental" and i % 4 == 3:
             pc = chord.pitch_classes[min(1, len(chord.pitch_classes) - 1)]
         pitch = nearest_pitch(pc, 36 + (i % 2) * 12)
-        notes.append(MidiNote(pitch, float(i), 0.9, 84 + (i % 3) * 4, channel=1))
+        notes.append(MidiNote(pitch, float(i) + _groove_offset(direction, i), 0.9, 84 + (i % 3) * 4, channel=1))
     return notes
 
 
@@ -120,7 +143,7 @@ def _harmony_notes(chord_symbols: tuple[str, ...], direction: str) -> list[MidiN
             center += 5
         voicing = voice_chord(chord, center=center, spread=3)
         for pitch in voicing:
-            notes.append(MidiNote(pitch, float(i), 0.9, 70 + (i % 2) * 8, channel=2))
+            notes.append(MidiNote(pitch, float(i) + _groove_offset(direction, i), 0.9, 70 + (i % 2) * 8, channel=2))
     return notes
 
 
@@ -140,6 +163,7 @@ def generate_sequence(request: RenderRequest) -> MidiSequence:
     direction = str(changes.get("direction", "identity"))
     bpm = float(changes.get("bpm", 120.0))
     chords = tuple(str(x) for x in changes.get("chord_progression", ()))
+    scale_name = str(changes.get("scale", "major"))
     role = _role(request.intent)
     if role == "bass":
         notes = _bass_notes(chords, root, direction)
@@ -148,7 +172,7 @@ def generate_sequence(request: RenderRequest) -> MidiSequence:
     elif role == "rhythm":
         notes = _rhythm_notes(direction)
     else:
-        notes = _melody_notes(chords, root, direction)
+        notes = _melody_notes(chords, root, scale_name, direction)
     return MidiSequence(tuple(notes), bpm)
 
 
