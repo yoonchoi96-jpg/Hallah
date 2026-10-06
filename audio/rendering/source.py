@@ -20,8 +20,11 @@ class SourceAudioGenerator:
         overrides=changes.get("source_adaptations")
         if isinstance(overrides,dict):
             source_override=overrides.get(sid)
-            if isinstance(source_override,dict) and isinstance(source_override.get("pitch_adaptation"),bool):
-                return bool(source_override["pitch_adaptation"])
+            if isinstance(source_override,dict):
+                if isinstance(source_override.get("pitch_adaptation"),bool):
+                    return bool(source_override["pitch_adaptation"])
+                if isinstance(source_override.get("pitch"),str):
+                    return True
         override=changes.get("pitch_adaptation")
         if isinstance(override,bool):
             return override
@@ -92,7 +95,9 @@ class SourceAudioGenerator:
         if isinstance(reference, str) and isinstance(auth, dict):
             candidate = auth.get(reference)
             if isinstance(candidate, dict):
-                return candidate
+                resolved = dict(candidate)
+                resolved["_source_id"] = reference
+                return resolved
         return meta
 
     @staticmethod
