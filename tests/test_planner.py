@@ -23,3 +23,10 @@ def test_candidate_carries_context_constraints():
     candidates=build_candidates(ctx,"make bass")
     assert len(candidates)==4
     assert all(c.parent_context_version==3 for c in candidates)
+
+
+def test_explicit_pitch_reference_is_preserved():
+    intent=parse_production_intent("드럼 피치를 기타에 맞춰")
+    assert ("drums","pitch","guitar") in intent.adaptation_requests
+    new=apply_patch(SongContext(),plan_context_patch(SongContext(),intent))
+    assert new.adaptation_overrides["drums"]["pitch"] == "guitar"
