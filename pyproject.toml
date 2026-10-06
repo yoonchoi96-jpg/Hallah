@@ -3,12 +3,11 @@ name = "hallah"
 version = "0.1.0"
 description = "AI-native music production environment with a conversational Executive Producer."
 requires-python = ">=3.11"
-dependencies = ["numpy>=2.0"]
-readme = "README.md"
-license = {text = "MIT"}
 dependencies = [
   "numpy>=2.0",
 ]
+readme = "README.md"
+license = {text = "MIT"}
 
 [project.optional-dependencies]
 dev = [
