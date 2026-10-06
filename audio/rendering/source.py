@@ -125,6 +125,47 @@ class SourceAudioGenerator:
         return rendered, {"low_factor": low_boost, "high_factor": high_boost, "dynamics": dynamics}
 
     @staticmethod
+    def _candidate_space_transient(
+        data: np.ndarray, sr: int, changes: dict[str, object]
+    ) -> tuple[np.ndarray, dict[str, float]]:
+        """Deterministic spatial/transient signatures for V0 auditioning."""
+        direction = str(changes.get("direction", "identity"))
+        settings = {
+            "identity": (1.00, 1.00, 0.00),
+            "natural": (1.06, 0.88, 0.00),
+            "bold": (1.24, 1.18, 0.00),
+            "experimental": (0.72, 1.32, 0.00),
+        }.get(direction, (1.00, 1.00, 0.00))
+        width, transient, _ = settings
+        rendered = data.astype(np.float32, copy=True)
+
+        # Mid/side width shaping. Mono sources remain mono; stereo sources
+        # receive deterministic candidate-specific spatial treatment.
+        if rendered.shape[1] >= 2 and rendered.shape[0]:
+            mid = (rendered[:, 0] + rendered[:, 1]) * 0.5
+            side = (rendered[:, 0] - rendered[:, 1]) * 0.5
+            side *= width
+            rendered[:, 0] = mid + side
+            rendered[:, 1] = mid - side
+
+        # A lightweight high-frequency/transient proxy. This is deliberately
+        # not a compressor: it only differentiates audition character while
+        # leaving the dedicated dynamics engine free for later versions.
+        if len(rendered) > 1 and abs(transient - 1.0) > 1e-6:
+            hp = np.empty_like(rendered)
+            hp[0] = 0.0
+            hp[1:] = rendered[1:] - rendered[:-1]
+            rendered += hp * (transient - 1.0) * 0.35
+
+        peak = float(np.max(np.abs(rendered))) if rendered.size else 0.0
+        if peak > 0.98:
+            rendered *= 0.98 / peak
+        return rendered, {
+            "stereo_width_factor": width,
+            "transient_factor": transient,
+        }
+
+    @staticmethod
     def _source_override(sid: str, changes: dict[str, object]) -> dict[str, object]:
         overrides = changes.get("source_adaptations")
         if isinstance(overrides, dict):
