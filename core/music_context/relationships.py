@@ -138,20 +138,17 @@ def analyze_relationships(
                     ))
                     conflicts.append("Tonal disagreement: analyzed assets suggest different key/scale.")
 
-            overlap = _spectral_overlap(left, right)
-            if overlap >= LOW_END_MASK_THRESHOLD:
-                if left.low_energy_ratio is not None and right.low_energy_ratio is not None:
-                    relationships.append(MusicalRelationship(
+            low_overlap = (min(left.low_energy_ratio, right.low_energy_ratio)\n                          if left.low_energy_ratio is not None and right.low_energy_ratio is not None\n                          else 0.0)\n            spectral_overlap = _spectral_overlap(left, right)\n            if low_overlap >= LOW_END_MASK_THRESHOLD:\n                if left.low_energy_ratio is not None and right.low_energy_ratio is not None:\n                    relationships.append(MusicalRelationship(
                         left.asset_id, right.asset_id, "conflict", "low_end", overlap,
-                        f"Likely low-end masking; shared low-band energy={overlap:.2f}.",
+                        f"Likely low-end masking; shared low-band energy={low_overlap:.2f}.",
                     ))
                     conflicts.append(
                         f"Low-end overlap: {left.asset_id} and {right.asset_id} share substantial low-frequency energy."
                     )
-            elif overlap >= SPECTRAL_OVERLAP_THRESHOLD:
+            elif spectral_overlap >= SPECTRAL_OVERLAP_THRESHOLD:
                 relationships.append(MusicalRelationship(
                     left.asset_id, right.asset_id, "dependency", "texture", overlap,
-                    f"Potential spectral competition; shared band energy={overlap:.2f}.",
+                    f"Potential spectral competition; shared band energy={spectral_overlap:.2f}.",
                 ))
 
     for dimension, authority in authority_by_dimension.items():
