@@ -157,10 +157,29 @@ def _rhythm_notes(direction: str) -> list[MidiNote]:
     return [MidiNote(36, start, 0.2, 92, channel=9) for start in starts]
 
 
+def _role_from_constraints(changes: Mapping[str, object]) -> str | None:
+    raw = changes.get("constraints", ())
+    for item in raw:
+        text = str(item)
+        if text.startswith("role:"):
+            dimension = text.split(":", 1)[1]
+            return {"low_end": "bass", "rhythm": "rhythm", "harmony": "harmony", "melody": "melody"}.get(dimension, "melody")
+    return None
+
+
 def _authority_ids(changes: Mapping[str, object], role: str) -> tuple[str, ...]:
-    prefix = f"authority:{ {'bass': 'low_end', 'rhythm': 'rhythm', 'harmony': 'harmony', 'melody': 'melody'}.get(role, role) }:"
+    dimension = {"bass": "low_end", "rhythm": "rhythm", "harmony": "harmony", "melody": "melody"}.get(role, role)
+    prefix = f"authority:{dimension}:"
     raw = changes.get("constraints", ())
     return tuple(str(item) for item in raw if str(item).startswith(prefix))
+
+
+def _apply_authority_register(notes: list[MidiNote], role: str) -> list[MidiNote]:
+    if role == "melody":
+        return [MidiNote(max(60, note.pitch), note.start_beat, note.duration_beats, note.velocity, note.channel) for note in notes]
+    if role == "bass":
+        return [MidiNote(min(55, note.pitch), note.start_beat, note.duration_beats, note.velocity, note.channel) for note in notes]
+    return notes
 
 
 def generate_sequence(request: RenderRequest) -> MidiSequence:
@@ -170,7 +189,7 @@ def generate_sequence(request: RenderRequest) -> MidiSequence:
     bpm = float(changes.get("bpm", 120.0))
     chords = tuple(str(x) for x in changes.get("chord_progression", ()))
     scale_name = str(changes.get("scale", "major"))
-    role = _role(request.intent)
+    role = _role_from_constraints(changes) or _role(request.intent)
     authorities = _authority_ids(changes, role)
     if role == "bass":
         notes = _bass_notes(chords, root, direction)
@@ -180,6 +199,7 @@ def generate_sequence(request: RenderRequest) -> MidiSequence:
         notes = _rhythm_notes(direction)
     else:
         notes = _melody_notes(chords, root, scale_name, direction)
+    notes = _apply_authority_register(notes, role)
     return MidiSequence(tuple(notes), bpm)
 
 
@@ -241,5 +261,5 @@ class DeterministicMidiGenerator:
             artifact_ref=str(output),
             cache_key=cache_key,
             duration_seconds=sum(n.duration_beats for n in sequence.notes) * 60.0 / sequence.tempo_bpm,
-            metadata={"renderer": "deterministic-v0.2", "note_count": len(sequence.notes), "role": _role(request.intent)},
+            metadata={"renderer": "deterministic-v0.3", "note_count": len(sequence.notes), "role": _role_from_constraints(request.parameter_changes) or _role(request.intent), "authorities": _authority_ids(request.parameter_changes, _role_from_constraints(request.parameter_changes) or _role(request.intent))},
         )
