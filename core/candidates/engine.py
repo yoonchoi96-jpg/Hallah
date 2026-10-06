@@ -16,13 +16,17 @@ def _authority_constraints(context: SongContext, intent: str) -> tuple[str, ...]
     elif any(x in text for x in ("chord", "harmony", "pad", "화음", "코드", "패드")):
         dimension = "harmony"
     else:
-        dimension = "melody"
+        # Generic requests inherit the strongest musical authority.
+        ranked_all = sorted(context.authorities, key=lambda a: a.confidence, reverse=True)
+        dimension = ranked_all[0].dimension if ranked_all else "melody"
     ranked = sorted(
         (a for a in context.authorities if a.dimension == dimension),
         key=lambda a: a.confidence,
         reverse=True,
     )
-    return tuple(f"authority:{dimension}:{a.source_id}:{a.confidence:.3f}" for a in ranked)
+    return (f"role:{dimension}",) + tuple(
+        f"authority:{dimension}:{a.source_id}:{a.confidence:.3f}" for a in ranked
+    )
 
 
 def _constraints_for(context: SongContext, direction: CandidateDirection, intent: str) -> tuple[str, ...]:
