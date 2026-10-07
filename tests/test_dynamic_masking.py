@@ -153,3 +153,33 @@ def test_spectral_collision_threshold_is_reference_guided():
         data, sr, source, reference, 0.25, bands=("mid",), ranges={"mid": (500.0, 1500.0)}
     )
     assert meta["collision_mode"] == "source_peaks_reference_guided"
+
+
+def test_spectral_curve_tracks_collision_frequency_over_time():
+    from audio.processing.dynamic_masking import apply_spectral_curve_dynamic_masking
+    sr = 8000
+    n = 8000
+    time = np.arange(n, dtype=np.float32) / sr
+    first = time < 0.5
+    source = np.where(
+        first,
+        np.sin(2 * np.pi * 800 * time),
+        np.sin(2 * np.pi * 1400 * time),
+    ).astype(np.float32)
+    reference = np.where(
+        first,
+        np.sin(2 * np.pi * 800 * time),
+        np.sin(2 * np.pi * 1400 * time),
+    ).astype(np.float32)
+    out, meta = apply_spectral_curve_dynamic_masking(
+        source[:, None], sr,
+        {"role": "guitar", "bpm": 60.0},
+        {"role": "vocal", "bpm": 60.0, "onset_beats": (0.0,), "note_durations_beats": (1.0,), "_source_id": "vocal"},
+        0.30, bands=("mid",), ranges={"mid": (500.0, 1800.0)},
+        reference_data=reference[:, None],
+    )
+    centers = tuple(float(x) for x in meta["tracked_centers_hz"])
+    assert meta["tracking"] is True
+    assert any(abs(x - 800.0) < 80.0 for x in centers)
+    assert any(abs(x - 1400.0) < 80.0 for x in centers)
+    assert len(out) == n
