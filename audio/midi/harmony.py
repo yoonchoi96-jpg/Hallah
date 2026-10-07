@@ -90,4 +90,6 @@ def voice_chord(chord: ChordSymbol, center: int = 60, spread: int = 4) -> tuple[
             note += 12
         notes.append(note)
         target += spread
+    if notes and notes[0] < center - 5:
+        notes = [note + 12 for note in notes]
     return tuple(notes)
