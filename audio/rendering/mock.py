@@ -86,8 +86,8 @@ class MockAudioGenerator:
         mix = np.zeros(total, dtype=np.float64)
 
         for note in sequence.notes:
-            start = max(0, round(note.start_beat * beat_seconds * sample_rate))
-            length = max(1, round(note.duration_beats * beat_seconds * sample_rate))
+            start = max(0, int(round(float(note.start_beat * beat_seconds * sample_rate))))
+            length = max(1, int(round(float(note.duration_beats * beat_seconds * sample_rate))))
             stop = min(total, start + length)
             if stop <= start:
                 continue
