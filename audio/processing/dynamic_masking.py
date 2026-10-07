@@ -470,13 +470,32 @@ def apply_spectral_curve_dynamic_masking(
                 rms_a = max(float(np.sqrt(np.mean(np.square(source_component)))), 1e-9)
                 rms_b = max(float(np.sqrt(np.mean(np.square(reference_component)))), 1e-9)
                 balance = min(1.0, rms_a / rms_b, rms_b / rms_a)
-                return [
-                    float(np.sqrt(
-                        (ss_component[int(np.argmin(np.abs(freqs_local - peak)))] / ds)
-                        * (rr_component[int(np.argmin(np.abs(freqs_local - peak)))] / dr)
-                    ) * balance)
-                    for peak in peaks
-                ]
+                source_cb = _critical_band_smoothing(ss_component, freqs_local)
+                reference_cb = _critical_band_smoothing(rr_component, freqs_local)
+                source_max = max(float(np.max(source_cb)), 1e-9)
+                reference_max = max(float(np.max(reference_cb)), 1e-9)
+                bark = _hz_to_bark(freqs_local)
+                strengths = []
+                for peak in peaks:
+                    index = int(np.argmin(np.abs(freqs_local - peak)))
+                    source_level = float(source_cb[index] / source_max)
+                    reference_level = float(reference_cb[index] / reference_max)
+                    source_active = max(0.0, (source_level - 0.08) / 0.92)
+                    reference_active = max(0.0, (reference_level - 0.08) / 0.92)
+                    raw = float(np.sqrt(source_active * reference_active) * balance)
+                    if raw <= 0.0:
+                        strengths.append(0.0)
+                        continue
+                    neighborhood = np.abs(bark - bark[index]) <= 1.10
+                    source_mean = float(np.mean(source_cb[neighborhood])) if np.any(neighborhood) else source_cb[index]
+                    reference_mean = float(np.mean(reference_cb[neighborhood])) if np.any(neighborhood) else reference_cb[index]
+                    source_peakiness = float(np.clip((source_cb[index] / max(source_mean, 1e-9) - 1.0) / 2.0, 0.0, 1.0))
+                    reference_peakiness = float(np.clip((reference_cb[index] / max(reference_mean, 1e-9) - 1.0) / 2.0, 0.0, 1.0))
+                    shape_factor = 0.68 + 0.32 * float(np.sqrt(source_peakiness * reference_peakiness))
+                    reference_share = reference_level / max(source_level + reference_level, 1e-9)
+                    level_factor = 0.78 + 0.22 * float(np.clip(reference_share, 0.0, 1.0))
+                    strengths.append(float(raw * shape_factor * level_factor))
+                return strengths
 
             source_mid, source_side = _stereo_components(chunk)
             reference_mid, reference_side = _stereo_components(ref_chunk)
