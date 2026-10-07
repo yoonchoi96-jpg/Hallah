@@ -72,10 +72,10 @@ def build_dynamic_envelope(
         active_end = note_end if note_end > start else start + release
         left = max(0.0, start - attack)
         right = min(duration, active_end + release)
-        a0 = max(0, round(left * sr))
-        a1 = max(a0, round(start * sr))
-        r0 = min(num_samples, max(a1, round(active_end * sr)))
-        r1 = min(num_samples, max(r0, round(right * sr)))
+        a0 = max(0, int(round(float(left * sr))))
+        a1 = max(a0, int(round(float(start * sr))))
+        r0 = min(num_samples, max(a1, int(round(float(active_end * sr)))))
+        r1 = min(num_samples, max(r0, int(round(float(right * sr)))))
         if a1 > a0:
             envelope[a0:a1] = np.minimum(
                 envelope[a0:a1],
@@ -265,7 +265,7 @@ def _spectral_component_collision(
         indices = np.flatnonzero(mask)
         values = collision[indices].copy()
         peaks = []
-        spacing = max(2, round(45.0 / (freqs[1] - freqs[0])))
+        spacing = max(2, int(round(float(45.0 / (freqs[1] - freqs[0])))))
         for _ in range(4):
             i = int(np.argmax(values))
             if values[i] < 0.12:
@@ -320,7 +320,7 @@ def _spectral_collision_centers(
         return (reference_center_hz,)
     values = spectrum[indices].copy()
     peaks = []
-    spacing = max(2, round(40.0 / (freqs[1] - freqs[0])))
+    spacing = max(2, int(round(float(40.0 / (freqs[1] - freqs[0])))))
     for _ in range(max(1, max_peaks)):
         i = int(np.argmax(values))
         if values[i] <= 0:
@@ -366,7 +366,7 @@ def _resample_reference_to_bpm(reference_data: np.ndarray, reference_bpm: float,
     ratio = float(reference_bpm) / float(source_bpm)
     if abs(ratio - 1.0) < 1e-6:
         return reference_data.astype(np.float32, copy=True), 1.0
-    target_length = max(1, round(len(reference_data) * ratio))
+    target_length = max(1, int(round(float(len(reference_data) * ratio))))
     old_x = np.linspace(0.0, 1.0, len(reference_data), endpoint=False)
     new_x = np.linspace(0.0, 1.0, target_length, endpoint=False)
     source = reference_data.astype(np.float32, copy=False)
@@ -396,7 +396,7 @@ def _estimate_reference_lag_samples(source_data: np.ndarray, reference_data: np.
         return 0
     source = np.mean(source_data.astype(np.float32, copy=False), axis=1)
     reference = np.mean(reference_data.astype(np.float32, copy=False), axis=1)
-    hop = max(16, round(sr / 100.0))
+    hop = max(16, int(round(float(sr / 100.0))))
     usable = min(len(source), len(reference), sr * 12)
     source, reference = source[:usable], reference[:usable]
     count = min(len(source), len(reference)) // hop
@@ -408,7 +408,7 @@ def _estimate_reference_lag_samples(source_data: np.ndarray, reference_data: np.
     reference_env -= float(np.mean(reference_env))
     if float(np.linalg.norm(source_env)) < 1e-7 or float(np.linalg.norm(reference_env)) < 1e-7:
         return 0
-    max_lag = min(round(max_lag_seconds * sr / hop), count - 2)
+    max_lag = min(int(round(float(max_lag_seconds * sr / hop))), count - 2)
     corr = np.correlate(source_env, reference_env, mode="full")
     center = count - 1
     lo, hi = max(0, center - max_lag), min(len(corr), center + max_lag + 1)
