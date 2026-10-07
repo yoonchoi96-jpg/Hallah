@@ -130,6 +130,45 @@ def test_project_assets_become_render_sources_in_project_order(tmp_path):
     }
 
 
+
+def test_project_registry_reaches_real_source_audio_generator(tmp_path):
+    import math
+    import wave
+    import numpy as np
+    from audio.rendering.source import SourceAudioGenerator
+    from core.project.models import AudioAsset, MusicProject
+
+    def tone(path, hz):
+        sr = 22050
+        t = np.arange(int(sr * 1.0)) / sr
+        x = 0.15 * np.sin(2 * math.pi * hz * t)
+        with wave.open(str(path), "wb") as wav:
+            wav.setnchannels(1)
+            wav.setsampwidth(2)
+            wav.setframerate(sr)
+            wav.writeframes((x * 32767).astype("<i2").tobytes())
+
+    drums = tmp_path / "drums.wav"
+    guitar = tmp_path / "guitar.wav"
+    tone(drums, 120)
+    tone(guitar, 220)
+
+    context = SongContext(version=7)
+    candidate = build_candidates(context, "render the project")[0]
+    project = MusicProject(
+        id="e2e-project",
+        context=context,
+        assets=[
+            AudioAsset(id="drums-main", path=str(drums), role_hint="drums"),
+            AudioAsset(id="guitar-main", path=str(guitar), role_hint="guitar"),
+        ],
+    )
+    request = candidate_to_render_request(candidate, context, project=project)
+    result = SourceAudioGenerator(tmp_path / "cache").render_mix(request)
+    assert result.metadata["stem_count"] == 2
+    assert len(result.metadata["stem_refs"]) == 2
+    assert result.duration_seconds == 1.0
+
 def test_project_asset_registry_rejects_duplicate_ids(tmp_path):
     from core.project.models import AudioAsset, MusicProject
     import pytest
