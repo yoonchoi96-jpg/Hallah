@@ -4,6 +4,7 @@ from dataclasses import asdict
 from typing import Literal
 from core.candidates.models import Candidate
 from core.music_context.models import SongContext
+from core.project.models import MusicProject
 from audio.rendering.contracts import RenderRequest, build_render_request
 
 def _authority_analysis(context: SongContext, changes: dict[str, object]) -> dict[str, dict[str, object]]:
@@ -18,10 +19,24 @@ def _authority_analysis(context: SongContext, changes: dict[str, object]) -> dic
         if analysis is not None: selected[source_id]={"dimension":dimension,**asdict(analysis)}
     return selected
 
-def candidate_to_render_request(candidate: Candidate, context: SongContext, *, kind: Literal["audio","midi"]="audio")->RenderRequest:
+def candidate_to_render_request(
+    candidate: Candidate,
+    context: SongContext,
+    *,
+    kind: Literal["audio", "midi"] = "audio",
+    project: MusicProject | None = None,
+) -> RenderRequest:
     if candidate.parent_context_version!=context.version:
         raise ValueError(f"Candidate {candidate.id} belongs to context v{candidate.parent_context_version}, not v{context.version}.")
-    changes=dict(candidate.parameter_changes); changes["direction"]=candidate.direction
+    changes = dict(candidate.parameter_changes)
+    changes["direction"] = candidate.direction
+    if project is not None:
+        if project.context.version != context.version:
+            raise ValueError(
+                f"Project {project.id} belongs to context v{project.context.version}, "
+                f"not v{context.version}."
+            )
+        changes["asset_paths"] = {asset.id: asset.path for asset in project.assets}
     if context.bpm is not None: changes.setdefault("bpm",context.bpm)
     if context.key is not None: changes.setdefault("key",context.key)
     if context.scale is not None: changes.setdefault("scale",context.scale)
