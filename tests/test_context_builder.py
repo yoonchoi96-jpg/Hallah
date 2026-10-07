@@ -1,5 +1,5 @@
 from core.analysis.contracts import AudioAnalysis
-from core.music_context.builder import build_song_context
+from core.music_context.builder import build_song_context, build_song_context_from_project
 
 def test_build_song_context_uses_dimension_authority():
     analyses = [
@@ -27,3 +27,31 @@ def test_build_song_context_falls_back_to_strongest_measurement():
     ctx = build_song_context(analyses)
     assert ctx.bpm == 102
     assert ctx.conflicts == []
+
+
+def test_build_song_context_from_project_uses_registered_asset_ids_and_role_hints():
+    from core.project.models import AudioAsset, MusicProject
+
+    class Analyzer:
+        def analyze(self, asset_id):
+            return AudioAnalysis(
+                asset_id=asset_id,
+                bpm=120,
+                key="C",
+                scale="major",
+                role="detected",
+                confidence={"bpm": 0.9, "key": 0.8, "role": 0.4},
+            )
+
+    project = MusicProject(
+        id="demo-project",
+        context=__import__("core.music_context.models", fromlist=["SongContext"]).SongContext(version=2),
+        assets=[
+            AudioAsset(id="drums-main", path="/tmp/drums.wav", role_hint="drums"),
+            AudioAsset(id="guitar-main", path="/tmp/guitar.wav", role_hint="guitar"),
+        ],
+    )
+    ctx = build_song_context_from_project(project, Analyzer())
+    assert set(ctx.analyses) == {"drums-main", "guitar-main"}
+    assert ctx.analyses["drums-main"].role == "drums"
+    assert ctx.bpm == 120
