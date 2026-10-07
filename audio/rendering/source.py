@@ -64,7 +64,7 @@ class SourceAudioGenerator:
         if rate <= 0: raise ValueError("rate must be positive")
         if abs(rate-1)<1e-6 or len(x)<2048: return x.copy()
         n=len(x); frame=min(4096,max(1024,2**int(math.log2(max(1024,min(n,4096))))))
-        hin=max(256,frame//4); hout=max(256,int(round(hin/rate))); win=np.hanning(frame)
+        hin=max(256,frame//4); hout=max(256,round(hin/rate)); win=np.hanning(frame)
         positions=list(range(0,max(1,n-frame+1),hin)); outlen=max(frame,(len(positions)-1)*hout+frame)
         out=np.zeros((outlen,x.shape[1])); norm=np.zeros(outlen)
         for i,start in enumerate(positions):
@@ -72,7 +72,7 @@ class SourceAudioGenerator:
             if len(chunk)<frame: chunk=np.pad(chunk,((0,frame-len(chunk)),(0,0)))
             s=i*hout; out[s:s+frame]+=chunk*win[:,None]; norm[s:s+frame]+=win
         valid=norm>1e-8; out[valid]/=norm[valid,None]; out[~valid]=0
-        target=max(1,int(round(n/rate)))
+        target=max(1,round(n/rate))
         return np.pad(out[:target],((0,max(0,target-len(out)))),mode="constant").astype(np.float32)
     @staticmethod
     def _pitch_shift(data: np.ndarray, semitones: float) -> np.ndarray:
@@ -85,7 +85,7 @@ class SourceAudioGenerator:
         if abs(semitones) < 1e-6 or len(data) < 2048:
             return data.copy()
         factor = 2.0 ** (semitones / 12.0)
-        new_len = max(2, int(round(len(data) / factor)))
+        new_len = max(2, round(len(data) / factor))
         positions = np.linspace(0.0, len(data) - 1.0, new_len)
         base = np.arange(len(data), dtype=np.float64)
         resampled = np.empty((new_len, data.shape[1]), dtype=np.float32)
