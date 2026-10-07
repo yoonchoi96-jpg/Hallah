@@ -251,7 +251,7 @@ def _spectral_component_collision(
         reference_cb = _critical_band_smoothing(reference_spec, freqs)
         src_peak = max(float(np.max(source_cb)), 1e-9)
         ref_peak = max(float(np.max(reference_cb)), 1e-9)
-        if ref_peak / src_peak < 0.08:
+        if ref_peak / src_peak < 0.04:
             return ()
         src = source_cb / src_peak
         ref = reference_cb / ref_peak
@@ -271,7 +271,7 @@ def _spectral_component_collision(
         spacing = max(2, int(round(float(45.0 / (freqs[1] - freqs[0])))))
         for _ in range(4):
             i = int(np.argmax(values))
-            if values[i] < 0.08:
+            if values[i] < 0.04:
                 break
             idx = indices[i]
             center_bark = _hz_to_bark(np.asarray([freqs[idx]], dtype=np.float32))[0]
@@ -416,7 +416,32 @@ def _estimate_reference_lag_samples(source_data: np.ndarray, reference_data: np.
     center = count - 1
     lo, hi = max(0, center - max_lag), min(len(corr), center + max_lag + 1)
     index = lo + int(np.argmax(corr[lo:hi]))
-    return int((index - center) * hop)
+    coarse = (index - center) * hop
+    # Refine the block-envelope estimate at sample resolution around the
+    # coarse lag; this removes the hop-size quantization error for transients.
+    radius = min(hop, max_lag_seconds * sr)
+    lag_lo = int(coarse - radius)
+    lag_hi = int(coarse + radius)
+    best_lag = coarse
+    best_score = -float("inf")
+    ref_abs = np.abs(reference)
+    src_abs = np.abs(source)
+    for lag in range(lag_lo, lag_hi + 1):
+        if lag >= 0:
+            left, right = 0, min(len(src_abs), len(ref_abs) - lag)
+            if right <= left:
+                continue
+            score = float(np.dot(src_abs[left:right], ref_abs[left + lag:right + lag]))
+        else:
+            shift = -lag
+            left, right = 0, min(len(src_abs) - shift, len(ref_abs))
+            if right <= left:
+                continue
+            score = float(np.dot(src_abs[left + shift:right + shift], ref_abs[left:right]))
+        if score > best_score:
+            best_score = score
+            best_lag = lag
+    return int(best_lag)
 
 def _align_reference_to_source(source_data: np.ndarray, reference_data: np.ndarray, sr: int, source_meta: dict[str, object], reference_meta: dict[str, object]) -> tuple[np.ndarray, dict[str, object], dict[str, object]]:
     """Align reference audio and event timing to the source musical timeline."""
@@ -686,7 +711,7 @@ def apply_spectral_curve_dynamic_masking(
                     normalized_strength = min(
                         1.0, max(0.0, (float(strength) - strength_floor) / (1.0 - strength_floor))
                     )
-                    depth = (1.0 - minimum) * (normalized_strength ** 1.5)
+                    depth = (1.0 - minimum) * (normalized_strength ** 1.0)
                     local_curve_mid = np.minimum(local_curve_mid, 1.0 - peak_curve * depth)
                 for peak, strength in zip(next_side_centers, next_side_strengths):
                     peak_sigma = max(35.0, float(peak) * 0.28)
@@ -722,6 +747,7 @@ def apply_spectral_curve_dynamic_masking(
         "events": len(events), "bands": tuple(b for b, _ in centers),
         "center_hz": center_hz, "center_hz_all": tuple(centers_hz), "sigma_hz": sigma,
         "tracking": reference_data is not None,
+        "collision_mode": "source_peaks_reference_guided" if reference_data is not None else "source_peaks",
         "stereo_mode": "mid_side" if data.shape[1] >= 2 else "mid_mono",
         "tracked_centers_hz": tuple(tracked_centers),
         "tracked_side_centers_hz": tuple(tracked_side_centers),
