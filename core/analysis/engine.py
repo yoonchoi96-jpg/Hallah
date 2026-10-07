@@ -12,9 +12,14 @@ class Analyzer(Protocol):
 
 
 class ProjectAsset(Protocol):
-    id: str
-    path: str
-    role_hint: str | None
+    @property
+    def id(self) -> str: ...
+
+    @property
+    def path(self) -> str: ...
+
+    @property
+    def role_hint(self) -> str | None: ...
 
 
 class ProjectLike(Protocol):
