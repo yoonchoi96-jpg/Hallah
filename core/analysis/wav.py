@@ -169,9 +169,9 @@ class WavAnalyzer:
         selected: list[int] = []
         for idx in candidates:
             if not selected or idx - selected[-1] >= min_gap:
-                selected.append(idx)
+                selected.append(int(idx))
             elif flux[idx] > flux[selected[-1]]:
-                selected[-1] = idx
+                selected[-1] = int(idx)
         beat_seconds = 60.0 / bpm
         return tuple(round((idx * hop / sr) / beat_seconds, 6) for idx in selected)
 
