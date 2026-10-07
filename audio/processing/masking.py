@@ -50,6 +50,11 @@ def resolve_masking(source_id: str, authority_analysis: dict[str, dict[str, obje
         conflict_relationship = any(str(rel.get("type")) == "conflict" for rel in explicit)
         # Authority is directional: relationship source is the authority and
         # relationship target is the material that adapts to it.
+        outgoing_authority = [
+            rel for rel in outgoing if str(rel.get("type")) == "authority"
+        ]
+        if outgoing_authority:
+            continue
         explicit_authority = [
             rel for rel in incoming
             if str(rel.get("type")) == "authority"
