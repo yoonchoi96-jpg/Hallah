@@ -379,11 +379,15 @@ def apply_spectral_curve_dynamic_masking(
             rr = np.abs(np.fft.rfft(mono_r * window))
             denom_s = max(float(np.max(ss)), 1e-9)
             denom_r = max(float(np.max(rr)), 1e-9)
+            rms_s = max(float(np.sqrt(np.mean(np.square(mono_s)))), 1e-9)
+            rms_r = max(float(np.sqrt(np.mean(np.square(mono_r)))), 1e-9)
+            level_balance = min(1.0, rms_s / rms_r, rms_r / rms_s)
             freqs_local = np.fft.rfftfreq(frame, 1.0 / sr)
             raw_strengths = []
             for peak in local_centers:
                 idx = int(np.argmin(np.abs(freqs_local - peak)))
-                raw_strengths.append(float(np.sqrt((ss[idx] / denom_s) * (rr[idx] / denom_r))))
+                spectral_overlap = float(np.sqrt((ss[idx] / denom_s) * (rr[idx] / denom_r)))
+                raw_strengths.append(spectral_overlap * level_balance)
 
             # Track peaks across adjacent frames. Limit movement first, then
             # smooth frequency so a changing collision does not jump abruptly.
