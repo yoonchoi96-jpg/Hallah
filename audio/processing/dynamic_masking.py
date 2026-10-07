@@ -548,6 +548,12 @@ def apply_spectral_curve_dynamic_masking(
                 peaks: tuple[float, ...],
                 freqs_local: np.ndarray,
             ) -> list[float]:
+                if len(source_component) < len(window):
+                    source_component = np.pad(source_component, (0, len(window) - len(source_component)))
+                if len(reference_component) < len(window):
+                    reference_component = np.pad(reference_component, (0, len(window) - len(reference_component)))
+                source_component = source_component[: len(window)]
+                reference_component = reference_component[: len(window)]
                 ss_component = np.abs(np.fft.rfft(source_component * window))
                 rr_component = np.abs(np.fft.rfft(reference_component * window))
                 rms_a = max(float(np.sqrt(np.mean(np.square(source_component)))), 1e-9)
