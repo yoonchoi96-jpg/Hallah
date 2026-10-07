@@ -1,6 +1,5 @@
 from audio.rendering.contracts import build_render_request
 from audio.rendering.source import SourceAudioGenerator
-from pathlib import Path
 import math
 import wave
 import numpy as np
