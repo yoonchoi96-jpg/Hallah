@@ -1,6 +1,7 @@
 """Deterministic analysis orchestration for Music Agent V0."""
 
 from dataclasses import dataclass
+from collections.abc import Sequence
 from typing import Protocol
 
 from core.analysis.contracts import AudioAnalysis
@@ -17,7 +18,7 @@ class ProjectAsset(Protocol):
 
 
 class ProjectLike(Protocol):
-    assets: list[ProjectAsset]
+    assets: Sequence[ProjectAsset]
 
 
 @dataclass(frozen=True)
