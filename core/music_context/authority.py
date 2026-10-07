@@ -19,7 +19,7 @@ def infer_authority(analyses: list[AudioAnalysis]) -> list[MusicalAuthority]:
     for a in analyses:
         if not a.role:
             continue
-        confidence = a.confidence.get("role", 0.0)
+        confidence = a.confidence.get("role", a.confidence.get(dimension, 0.0))
         for dimension in ROLE_TO_DIMENSIONS.get(a.role, ()):
             authorities.append(MusicalAuthority(
                 source_id=a.asset_id, dimension=cast(Literal["harmony", "rhythm", "melody", "low_end", "texture", "arrangement"], dimension), confidence=confidence,
