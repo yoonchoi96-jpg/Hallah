@@ -407,6 +407,10 @@ class SourceAudioGenerator:
                     else request.parameter_changes.get("key"))
         pitch_allowed=self._pitch_allowed(sid,meta,request.parameter_changes)
         source_pc,target_pc=self._key_pc(source_key),self._key_pc(target_key)
+        if source_pc is None and isinstance(source_key, str):
+            source_pc = self._key_pc(source_key.strip().split()[0])
+        if target_pc is None and isinstance(target_key, str):
+            target_pc = self._key_pc(target_key.strip().split()[0])
         semitones=0.0
         if (pitch_allowed or isinstance(override.get("pitch"), str)) and source_pc is not None and target_pc is not None:
             delta=target_pc-source_pc
