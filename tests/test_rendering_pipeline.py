@@ -107,6 +107,54 @@ def test_project_assets_are_injected_into_render_request(tmp_path):
     assert request.parameter_changes["asset_paths"]["guitar-main"] == str(source)
 
 
+
+def test_project_assets_become_render_sources_in_project_order(tmp_path):
+    from core.project.models import AudioAsset, MusicProject
+    context = SongContext(version=6)
+    candidate = build_candidates(context, "render all project assets")[0]
+    first = tmp_path / "drums.wav"
+    second = tmp_path / "guitar.wav"
+    project = MusicProject(
+        id="project-registry-v1",
+        context=context,
+        assets=[
+            AudioAsset(id="drums-main", path=str(first), role_hint="drums"),
+            AudioAsset(id="guitar-main", path=str(second), role_hint="guitar"),
+        ],
+    )
+    request = candidate_to_render_request(candidate, context, project=project)
+    assert request.source_asset_ids == ("drums-main", "guitar-main")
+    assert request.parameter_changes["asset_paths"] == {
+        "drums-main": str(first),
+        "guitar-main": str(second),
+    }
+
+
+def test_project_asset_registry_rejects_duplicate_ids(tmp_path):
+    from core.project.models import AudioAsset, MusicProject
+    import pytest
+    context = SongContext(version=1)
+    with pytest.raises(ValueError, match="Duplicate AudioAsset id"):
+        MusicProject(
+            id="invalid-project",
+            context=context,
+            assets=[
+                AudioAsset(id="same", path=str(tmp_path / "a.wav")),
+                AudioAsset(id="same", path=str(tmp_path / "b.wav")),
+            ],
+        )
+
+
+def test_project_asset_registry_rejects_empty_paths():
+    from core.project.models import AudioAsset, MusicProject
+    import pytest
+    with pytest.raises(ValueError, match="path must not be empty"):
+        MusicProject(
+            id="invalid-project",
+            context=SongContext(version=1),
+            assets=[AudioAsset(id="drums-main", path="")],
+        )
+
 def test_project_context_version_must_match_render_context():
     from core.project.models import MusicProject
     context = SongContext(version=4)
