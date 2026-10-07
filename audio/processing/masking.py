@@ -78,7 +78,7 @@ def resolve_masking(source_id: str, authority_analysis: dict[str, dict[str, obje
         for band, key in (("low", "low_energy_ratio"), ("mid", "mid_energy_ratio"), ("high", "high_energy_ratio")):
             if (source.get(key, 0) or 0) > 0.10 and (ref.get(key, 0) or 0) > 0.10:
                 shared.append(band)
-        if not shared or source_priority >= ref_priority:
+        if not shared or source_priority >= ref_priority or any(str(rel.get("type")) == "authority" for rel in outgoing):
             continue
         reason = f"{ref_id} has higher musical-role priority ({ref_priority:.0f} vs {source_priority:.0f})."
         if explicit_authority:
