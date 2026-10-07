@@ -48,11 +48,8 @@ def classify_bpm(left: float, right: float, tolerance: float = BPM_TOLERANCE) ->
         return BPMRelationship("unknown", 0.0, difference)
 
     ratio = max(left, right) / min(left, right)
-    for target, kind in ((2.0, "double_time"), (0.5, "half_time")):
-        normalized = ratio if target == 2.0 else 1.0 / ratio
-        if abs(normalized - 1.0) <= BPM_RELATION_TOLERANCE:
-            return BPMRelationship(kind, ratio, difference)
-
+    if abs(ratio - 2.0) <= 2.0 * BPM_RELATION_TOLERANCE:
+        return BPMRelationship("double_time", ratio, difference)
     return BPMRelationship("conflict", ratio, difference)
 
 
