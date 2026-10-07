@@ -740,10 +740,8 @@ def apply_spectral_curve_dynamic_masking(
                     peak_curve = np.exp(
                         -0.5 * ((freqs - peak) / peak_sigma) ** 2
                     ).astype(np.float32)
-                    strength_floor = 0.12
-                    normalized_strength = min(
-                        1.0, max(0.0, (float(strength) - strength_floor) / (1.0 - strength_floor))
-                    )
+                    strength_floor = 0.05
+                    normalized_strength = min(1.0, max(0.0, (float(strength) - strength_floor) / (1.0 - strength_floor)))
                     spectral_minimum = max(0.35, 1.0 - min(0.65, float(amount) * 2.0))
                     depth = min(0.55, (1.0 - spectral_minimum) * (normalized_strength ** 0.5) * 1.35)
                     local_curve_mid = np.minimum(local_curve_mid, 1.0 - peak_curve * depth)
