@@ -70,10 +70,10 @@ def build_dynamic_envelope(
         active_end = note_end if note_end > start else start + release
         left = max(0.0, start - attack)
         right = min(duration, active_end + release)
-        a0 = max(0, int(round(left * sr)))
-        a1 = max(a0, int(round(start * sr)))
-        r0 = min(num_samples, max(a1, int(round(active_end * sr))))
-        r1 = min(num_samples, max(r0, int(round(right * sr))))
+        a0 = max(0, round(left * sr))
+        a1 = max(a0, round(start * sr))
+        r0 = min(num_samples, max(a1, round(active_end * sr)))
+        r1 = min(num_samples, max(r0, round(right * sr)))
         if a1 > a0:
             envelope[a0:a1] = np.minimum(
                 envelope[a0:a1],
@@ -263,7 +263,7 @@ def _spectral_component_collision(
         indices = np.flatnonzero(mask)
         values = collision[indices].copy()
         peaks = []
-        spacing = max(2, int(round(45.0 / (freqs[1] - freqs[0]))))
+        spacing = max(2, round(45.0 / (freqs[1] - freqs[0])))
         for _ in range(4):
             i = int(np.argmax(values))
             if values[i] < 0.12:
@@ -318,7 +318,7 @@ def _spectral_collision_centers(
         return (reference_center_hz,)
     values = spectrum[indices].copy()
     peaks = []
-    spacing = max(2, int(round(40.0 / (freqs[1] - freqs[0]))))
+    spacing = max(2, round(40.0 / (freqs[1] - freqs[0])))
     for _ in range(max(1, max_peaks)):
         i = int(np.argmax(values))
         if values[i] <= 0:
@@ -364,7 +364,7 @@ def _resample_reference_to_bpm(reference_data: np.ndarray, reference_bpm: float,
     ratio = float(reference_bpm) / float(source_bpm)
     if abs(ratio - 1.0) < 1e-6:
         return reference_data.astype(np.float32, copy=True), 1.0
-    target_length = max(1, int(round(len(reference_data) * ratio)))
+    target_length = max(1, round(len(reference_data) * ratio))
     old_x = np.linspace(0.0, 1.0, len(reference_data), endpoint=False)
     new_x = np.linspace(0.0, 1.0, target_length, endpoint=False)
     source = reference_data.astype(np.float32, copy=False)
@@ -394,7 +394,7 @@ def _estimate_reference_lag_samples(source_data: np.ndarray, reference_data: np.
         return 0
     source = np.mean(source_data.astype(np.float32, copy=False), axis=1)
     reference = np.mean(reference_data.astype(np.float32, copy=False), axis=1)
-    hop = max(16, int(round(sr / 100.0)))
+    hop = max(16, round(sr / 100.0))
     usable = min(len(source), len(reference), sr * 12)
     source, reference = source[:usable], reference[:usable]
     count = min(len(source), len(reference)) // hop
@@ -514,7 +514,7 @@ def apply_spectral_curve_dynamic_masking(
     reference_padded = None
     alignment_meta = {"applied": False, "bpm_ratio": 1.0, "lag_samples": 0, "lag_seconds": 0.0}
     if reference_data is not None and len(reference_data):
-        reference_array, aligned_reference_meta, alignment_meta = _align_reference_to_source(
+        reference_array, aligned_reference_meta, _alignment_meta = _align_reference_to_source(
             data, reference_data, sr, source_meta, reference_meta
         )
         envelope, _ = build_dynamic_envelope(
@@ -539,7 +539,7 @@ def apply_spectral_curve_dynamic_masking(
                 chunk, ref_chunk, sr, lo_hz, hi_hz
             )
             local_centers = mid_centers
-            __freqs_local = np.fft.rfftfreq(frame, 1.0 / sr)
+            freqs_local = np.fft.rfftfreq(frame, 1.0 / sr)
 
             def component_strengths(
                 source_component: np.ndarray,
@@ -553,10 +553,10 @@ def apply_spectral_curve_dynamic_masking(
                 rms_b = max(float(np.sqrt(np.mean(np.square(reference_component)))), 1e-9)
                 balance = min(1.0, rms_a / rms_b, rms_b / rms_a)
                 source_cb = _critical_band_smoothing(ss_component, freqs_local)
-                reference_cb = _critical_band_smoothing(rr_component, __freqs_local)
+                reference_cb = _critical_band_smoothing(rr_component, freqs_local)
                 source_max = max(float(np.max(source_cb)), 1e-9)
                 reference_max = max(float(np.max(reference_cb)), 1e-9)
-                bark = _hz_to_bark(__freqs_local)
+                bark = _hz_to_bark(freqs_local)
                 strengths = []
                 for peak in peaks:
                     index = int(np.argmin(np.abs(freqs_local - peak)))
@@ -587,8 +587,8 @@ def apply_spectral_curve_dynamic_masking(
 
             source_mid, source_side = _stereo_components(chunk)
             reference_mid, reference_side = _stereo_components(ref_chunk)
-            mid_strengths = component_strengths(source_mid, reference_mid, mid_centers, __freqs_local)
-            side_strengths = component_strengths(source_side, reference_side, side_centers, __freqs_local)
+            mid_strengths = component_strengths(source_mid, reference_mid, mid_centers, freqs_local)
+            side_strengths = component_strengths(source_side, reference_side, side_centers, freqs_local)
 
             # Track peaks across adjacent frames. Limit movement first, then
             # smooth frequency so a changing collision does not jump abruptly.
@@ -723,7 +723,7 @@ def apply_spectral_curve_dynamic_masking(
         "smoothed_strength_max": max(smoothed_strengths, default=0.0),
         "smoothed_strength_mean": float(np.mean(smoothed_strengths)) if smoothed_strengths else 0.0,
         "tracking_max_center_jump_hz": max(
-            (abs(b - a) for a, b in zip(smoothed_centers, smoothed_centers[1:])),
+            (abs(b - a) for a, b in pairwise(smoothed_centers)),
             default=0.0,
         ),
     }
