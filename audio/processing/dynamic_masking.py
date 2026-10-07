@@ -268,7 +268,7 @@ def _spectral_component_collision(
             i = int(np.argmax(values))
             if values[i] < 0.12:
                 break
-            idx = int(indices[i])
+            idx = indices[i]
             center_bark = _hz_to_bark(np.asarray([freqs[idx]], dtype=np.float32))[0]
             bark_distance = np.abs(_hz_to_bark(freqs) - center_bark)
             local = np.where(mask & (bark_distance <= 0.55), source_spec, 0.0)
@@ -323,7 +323,7 @@ def _spectral_collision_centers(
         i = int(np.argmax(values))
         if values[i] <= 0:
             break
-        idx = int(indices[i])
+        idx = indices[i]
         peaks.append(float(freqs[idx]))
         left, right = max(0, i - spacing), min(len(values), i + spacing + 1)
         values[left:right] = 0.0
@@ -426,7 +426,7 @@ def _align_reference_to_source(source_data: np.ndarray, reference_data: np.ndarr
     aligned_meta = dict(reference_meta)
     if isinstance(source_bpm, (int, float)) and float(source_bpm) > 0:
         aligned_meta["bpm"] = float(source_bpm)
-    return aligned, aligned_meta, {"applied": bool(abs(bpm_ratio - 1.0) > 1e-6 or lag_samples != 0), "bpm_ratio": float(bpm_ratio), "lag_samples": int(lag_samples), "lag_seconds": float(lag_samples) / float(sr) if sr > 0 else 0.0}
+    return aligned, aligned_meta, {"applied": bool(abs(bpm_ratio - 1.0) > 1e-6 or lag_samples != 0), "bpm_ratio": float(bpm_ratio), "lag_samples": lag_samples, "lag_seconds": float(lag_samples) / float(sr) if sr > 0 else 0.0}
 
 def apply_spectral_curve_dynamic_masking(
     data: np.ndarray,
@@ -539,7 +539,7 @@ def apply_spectral_curve_dynamic_masking(
                 chunk, ref_chunk, sr, lo_hz, hi_hz
             )
             local_centers = mid_centers
-            freqs_local = np.fft.rfftfreq(frame, 1.0 / sr)
+            _freqs_local = np.fft.rfftfreq(frame, 1.0 / sr)
 
             def component_strengths(
                 source_component: np.ndarray,
@@ -551,14 +551,14 @@ def apply_spectral_curve_dynamic_masking(
                 rms_a = max(float(np.sqrt(np.mean(np.square(source_component)))), 1e-9)
                 rms_b = max(float(np.sqrt(np.mean(np.square(reference_component)))), 1e-9)
                 balance = min(1.0, rms_a / rms_b, rms_b / rms_a)
-                source_cb = _critical_band_smoothing(ss_component, freqs_local)
-                reference_cb = _critical_band_smoothing(rr_component, freqs_local)
+                source_cb = _critical_band_smoothing(ss_component, _freqs_local)
+                reference_cb = _critical_band_smoothing(rr_component, _freqs_local)
                 source_max = max(float(np.max(source_cb)), 1e-9)
                 reference_max = max(float(np.max(reference_cb)), 1e-9)
-                bark = _hz_to_bark(freqs_local)
+                bark = _hz_to_bark(_freqs_local)
                 strengths = []
                 for peak in peaks:
-                    index = int(np.argmin(np.abs(freqs_local - peak)))
+                    index = int(np.argmin(np.abs(_freqs_local - peak)))
                     source_level = float(source_cb[index] / source_max)
                     reference_level = float(reference_cb[index] / reference_max)
                     neighborhood = np.abs(bark - bark[index]) <= 1.10
