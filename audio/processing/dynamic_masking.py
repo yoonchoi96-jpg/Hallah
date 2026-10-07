@@ -171,6 +171,49 @@ def apply_frequency_dynamic_masking(
     return (data.astype(np.float32, copy=False) * envelope[:, None]).astype(np.float32), metadata
 
 
+
+def _spectral_collision_peaks(
+    source_data: np.ndarray,
+    reference_data: np.ndarray,
+    sr: int,
+    low_hz: float,
+    high_hz: float,
+    max_peaks: int = 4,
+) -> tuple[float, ...]:
+    """Return frequencies that are strong in both source and reference spectra."""
+    if len(source_data) == 0 or len(reference_data) == 0:
+        return ()
+    frame = min(4096, max(512, 2 ** int(np.log2(max(512, min(len(source_data), len(reference_data), 4096))))))
+    def spectrum(data: np.ndarray) -> np.ndarray:
+        mono = np.mean(data.astype(np.float32, copy=False), axis=1)
+        if len(mono) < frame:
+            mono = np.pad(mono, (0, frame - len(mono)))
+        return np.abs(np.fft.rfft(mono[:frame] * np.hanning(frame)))
+    source_spec = spectrum(source_data)
+    reference_spec = spectrum(reference_data)
+    freqs = np.fft.rfftfreq(frame, 1.0 / sr)
+    mask = (freqs >= max(20.0, low_hz)) & (freqs <= min(sr * 0.5, high_hz))
+    if not np.any(mask):
+        return ()
+    # Normalize each spectrum so collision means relative prominence in both signals.
+    src = source_spec / max(float(np.max(source_spec)), 1e-9)
+    ref = reference_spec / max(float(np.max(reference_spec)), 1e-9)
+    collision = np.sqrt(src * ref)
+    indices = np.flatnonzero(mask)
+    values = collision[indices].copy()
+    peaks = []
+    spacing = max(2, int(round(45.0 / (freqs[1] - freqs[0]))))
+    for _ in range(max(1, max_peaks)):
+        i = int(np.argmax(values))
+        if values[i] < 0.12:
+            break
+        idx = int(indices[i])
+        peaks.append(float(freqs[idx]))
+        left, right = max(0, i - spacing), min(len(values), i + spacing + 1)
+        values[left:right] = 0.0
+    return tuple(peaks)
+
+
 def _spectral_collision_centers(
     data: np.ndarray,
     sr: int,
