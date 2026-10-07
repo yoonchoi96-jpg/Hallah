@@ -95,8 +95,8 @@ class MockAudioGenerator:
             t = np.arange(count, dtype=np.float64) / sample_rate
             phase = 2.0 * math.pi * (440.0 * 2.0 ** ((note.pitch - 69) / 12.0)) * t
             signal = cls._oscillator(phase, note.channel)
-            attack = min(int(0.01 * sample_rate), count)
-            release = min(int(0.04 * sample_rate), count)
+            attack = min(0.01 * sample_rate, count)
+            release = min(0.04 * sample_rate, count)
             envelope = np.ones(count)
             if attack:
                 envelope[:attack] *= np.linspace(0.0, 1.0, attack, endpoint=False)
