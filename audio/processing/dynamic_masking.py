@@ -406,7 +406,7 @@ def _estimate_reference_lag_samples(source_data: np.ndarray, reference_data: np.
     reference_env -= float(np.mean(reference_env))
     if float(np.linalg.norm(source_env)) < 1e-7 or float(np.linalg.norm(reference_env)) < 1e-7:
         return 0
-    max_lag = min(int(round(max_lag_seconds * sr / hop)), count - 2)
+    max_lag = min(round(max_lag_seconds * sr / hop), count - 2)
     corr = np.correlate(source_env, reference_env, mode="full")
     center = count - 1
     lo, hi = max(0, center - max_lag), min(len(corr), center + max_lag + 1)
@@ -512,7 +512,6 @@ def apply_spectral_curve_dynamic_masking(
     strength_attack = 0.45
     strength_release = 0.16
     reference_padded = None
-    alignment_meta = {"applied": False, "bpm_ratio": 1.0, "lag_samples": 0, "lag_seconds": 0.0}
     if reference_data is not None and len(reference_data):
         reference_array, aligned_reference_meta, _alignment_meta = _align_reference_to_source(
             data, reference_data, sr, source_meta, reference_meta
