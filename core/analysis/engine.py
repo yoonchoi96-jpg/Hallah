@@ -5,25 +5,11 @@ from dataclasses import dataclass
 from typing import Protocol
 
 from core.analysis.contracts import AudioAnalysis
+from core.project.models import MusicProject
 
 
 class Analyzer(Protocol):
     def analyze(self, asset_id: str) -> AudioAnalysis: ...
-
-
-class ProjectAsset(Protocol):
-    @property
-    def id(self) -> str: ...
-
-    @property
-    def path(self) -> str: ...
-
-    @property
-    def role_hint(self) -> str | None: ...
-
-
-class ProjectLike(Protocol):
-    assets: Sequence[ProjectAsset]
 
 
 @dataclass(frozen=True)
@@ -40,7 +26,7 @@ def analyze_assets(analyzer: Analyzer, asset_ids: list[str]) -> AnalysisBatch:
 
 
 
-def analyze_project_assets(analyzer: Analyzer, project: ProjectLike) -> AnalysisBatch:
+def analyze_project_assets(analyzer: Analyzer, project: MusicProject) -> AnalysisBatch:
     """Analyze a MusicProject while preserving its logical asset IDs.
 
     An Analyzer operates on a concrete source reference (for example a WAV path),
