@@ -44,17 +44,31 @@ def resolve_masking(source_id: str, authority_analysis: dict[str, dict[str, obje
     for ref_id, ref in authority_analysis.items():
         if ref_id == source_id:
             continue
-        explicit = relationship_index.get((source_id, ref_id), []) + relationship_index.get((ref_id, source_id), [])
+        outgoing = relationship_index.get((source_id, ref_id), [])
+        incoming = relationship_index.get((ref_id, source_id), [])
+        explicit = outgoing + incoming
         conflict_relationship = any(str(rel.get("type")) == "conflict" for rel in explicit)
+        # Authority is directional: relationship source is the authority and
+        # relationship target is the material that adapts to it.
         explicit_authority = [
-            rel for rel in explicit
+            rel for rel in incoming
             if str(rel.get("type")) == "authority"
             and (rel.get("dimension") is None or str(rel.get("dimension")) == str(source.get("dimension", "")))
         ]
+        dependency_relationship = [
+            rel for rel in explicit
+            if str(rel.get("type")) == "dependency"
+            and (rel.get("dimension") is None or str(rel.get("dimension")) == str(source.get("dimension", "")))
+        ]
+        ref_priority = _priority(ref)
         if explicit_authority:
-            ref_priority = max(_priority(ref), 100.0 + max(float(rel.get("confidence", 1.0) or 1.0) for rel in explicit_authority) * 10.0)
-        else:
-            ref_priority = _priority(ref)
+            ref_priority = max(
+                ref_priority,
+                100.0 + max(float(rel.get("confidence", 1.0) or 1.0) for rel in explicit_authority) * 10.0,
+            )
+        elif dependency_relationship:
+            # Dependency is weaker than authority and only breaks a close tie.
+            ref_priority += 5.0
         shared = []
         for band, key in (("low", "low_energy_ratio"), ("mid", "mid_energy_ratio"), ("high", "high_energy_ratio")):
             if (source.get(key, 0) or 0) > 0.10 and (ref.get(key, 0) or 0) > 0.10:
@@ -64,6 +78,8 @@ def resolve_masking(source_id: str, authority_analysis: dict[str, dict[str, obje
         reason = f"{ref_id} has higher musical-role priority ({ref_priority:.0f} vs {source_priority:.0f})."
         if explicit_authority:
             reason = f"{ref_id} is an explicit authority relationship for {source.get('dimension', 'the relevant dimension')}."
+        elif dependency_relationship:
+            reason = f"{ref_id} is a dependency reference for {source.get('dimension', 'the relevant dimension')}."
         elif conflict_relationship:
             reason = f"{ref_id} has an explicit musical conflict relationship."
         decisions.append({"reference_id": ref_id, "bands": tuple(shared), "ranges": {band: _band_ranges(source, sample_rate)[band] for band in shared}, "priority": ref_priority, "amount": min(0.24, 0.08 + (ref_priority - source_priority) / 500.0), "reason": reason})
