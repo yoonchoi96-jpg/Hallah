@@ -115,3 +115,29 @@ def test_project_context_version_must_match_render_context():
     import pytest
     with pytest.raises(ValueError, match="belongs to context"):
         candidate_to_render_request(candidate, context, project=stale)
+
+
+def test_preview_candidates_injects_project_asset_paths(tmp_path):
+    from audio.rendering.candidates import preview_candidates
+    from core.project.models import AudioAsset, MusicProject
+    context = SongContext(version=5)
+    candidate = build_candidates(context, "render project")[0]
+    source = tmp_path / "guitar.wav"
+    project = MusicProject(
+        id="project-preview-v1",
+        context=context,
+        assets=[AudioAsset(id="guitar-main", path=str(source), role_hint="guitar")],
+    )
+
+    class CaptureRenderer:
+        def __init__(self):
+            self.request = None
+        def render(self, request):
+            self.request = request
+            from audio.rendering.contracts import RenderResult
+            return RenderResult(candidate_id=request.candidate_id, kind="audio", artifact_ref="preview.wav", cache_key="preview", duration_seconds=1.0, sample_rate=44100, metadata={})
+
+    renderer = CaptureRenderer()
+    rendered = preview_candidates(context, [candidate], renderer, kind="audio", project=project)
+    assert rendered.candidates[0].audio_refs == ("preview.wav",)
+    assert renderer.request.parameter_changes["asset_paths"]["guitar-main"] == str(source)
