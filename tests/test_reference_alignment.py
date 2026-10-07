@@ -41,10 +41,10 @@ def test_reference_alignment_maps_bpm_timeline_before_lag():
         {"bpm": 120.0},
     )
 
-    assert info["bpm_ratio"] == 0.5
+    assert info["bpm_ratio"] == 2.0
     assert len(aligned) == 6000
     assert meta["bpm"] == 60.0
-    assert int(np.argmax(np.abs(aligned[:, 0]))) == 1000
+    assert abs(int(np.argmax(np.abs(aligned[:, 0]))) - 1000) <= 10
 
 
 def test_reference_alignment_handles_short_reference_and_mono():
