@@ -189,13 +189,19 @@ def _critical_band_smoothing(
     """Smooth spectral energy over a compact Bark-scale critical-band neighborhood."""
     power = np.square(np.asarray(spectrum, dtype=np.float32))
     bark = _hz_to_bark(freqs)
-    result = np.zeros_like(power)
-    # A direct Bark-domain kernel is cheap at the small FFT sizes used here.
-    for index, center in enumerate(bark):
-        distance = (bark - center) / max(0.1, bark_sigma)
-        weights = np.exp(-0.5 * distance * distance)
-        result[index] = float(np.sum(power * weights) / max(float(np.sum(weights)), 1e-9))
-    return result
+    if power.size == 0:
+        return power.copy()
+    # Interpolate to a uniform Bark grid, smooth once, then interpolate back.
+    # This avoids the quadratic all-frequency kernel used by the original V0 path.
+    step = max(0.02, min(0.08, float(bark_sigma) / 8.0))
+    grid = np.arange(float(bark[0]), float(bark[-1]) + step * 0.5, step, dtype=np.float32)
+    sampled = np.interp(grid, bark, power).astype(np.float32)
+    radius = max(1, int(np.ceil(3.0 * float(bark_sigma) / step)))
+    offsets = np.arange(-radius, radius + 1, dtype=np.float32)
+    kernel = np.exp(-0.5 * np.square(offsets * step / max(0.1, float(bark_sigma))))
+    kernel /= max(float(np.sum(kernel)), 1e-9)
+    smoothed = np.convolve(sampled, kernel.astype(np.float32), mode="same")
+    return np.interp(bark, grid, smoothed).astype(np.float32)
 
 
 def _stereo_components(data: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
