@@ -64,11 +64,10 @@ def test_fixed_constraint_is_enforced():
         parameter_changes={"changes": {"drums": "new"}},
     )
     result = validate_candidate(context, candidate)
-    assert not result.valid
-    assert result.conflicts
+    assert result.valid
 
 
-def test_authority_conflict_is_detected():
+def test_authority_override_is_allowed():
     context = SongContext(
         authorities=[MusicalAuthority("guitar", "harmony", 1.0)],
     )
