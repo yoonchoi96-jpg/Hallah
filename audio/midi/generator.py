@@ -134,7 +134,7 @@ def _melody_notes(chord_symbols: tuple[str, ...], root: int, scale_name: str | N
             pitch = _nearest_scale_tone(chord_tone + (-1 if i % 2 else 1), scale_pcs, chord_tone)
         if direction == "experimental" and i in (3, 6):
             pitch += 1
-        pitch = max(60, min(84, pitch))
+        pitch = max(48, min(84, pitch))
         duration = 0.5 if direction != "identity" else 1.0
         notes.append(MidiNote(pitch, beat + _groove_offset(direction, i), duration, min(118, 76 + (i % 3) * 7)))
         beat += duration
@@ -246,16 +246,10 @@ def generate_sequence(request: RenderRequest) -> MidiSequence:
         authority_notes = _authority_notes(changes, "melody")
         if authority_notes:
             low, high = min(authority_notes), max(authority_notes)
-            if high - low < 12:
-                notes = [
-                    MidiNote(min(96, n.pitch + 12), n.start_beat, n.duration_beats, n.velocity, n.channel)
-                    for n in notes
-                ]
-            else:
-                notes = [
-                    MidiNote(min(n.pitch, low - 1), n.start_beat, n.duration_beats, n.velocity, n.channel)
-                    for n in notes
-                ]
+            notes = [
+                MidiNote(min(n.pitch, low - 1), n.start_beat, n.duration_beats, n.velocity, n.channel)
+                for n in notes
+            ]
     notes = _apply_authority_register(notes, role)
     return MidiSequence(tuple(notes), bpm)
 
