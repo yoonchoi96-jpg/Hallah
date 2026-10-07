@@ -283,8 +283,9 @@ def apply_spectral_curve_dynamic_masking(
     amount: float,
     bands: tuple[str, ...] = ("low", "mid", "high"),
     ranges: dict[str, tuple[float, float]] | None = None,
+    reference_data: np.ndarray | None = None,
 ) -> tuple[np.ndarray, dict[str, object]]:
-    """Apply a smooth spectral ducking curve centered on the reference spectrum."""
+    """Apply a smooth spectral ducking curve with optional frame-by-frame spectral tracking."""
     if len(data) == 0 or sr <= 0 or amount <= 0:
         return data.astype(np.float32, copy=True), {"applied": False, "events": 0, "curve": ()}
     duration = len(data) / float(sr)
@@ -342,13 +343,52 @@ def apply_spectral_curve_dynamic_masking(
             multi_curve = np.maximum(multi_curve, np.exp(-0.5 * peak_distance * peak_distance).astype(np.float32))
         curve[mask] = 1.0 - (1.0 - minimum) * multi_curve[mask]
     envelope, _ = build_dynamic_envelope(len(data), sr, source_meta, reference_meta, amount)
+    tracked_centers: list[float] = []
+    tracked_strengths: list[float] = []
+    reference_padded = None
+    if reference_data is not None and len(reference_data):
+        reference_padded = np.pad(
+            reference_data.astype(np.float32, copy=False),
+            ((0, max(0, frame - len(reference_data))), (0, 0)),
+        )
     for start in range(0, len(data), hop):
         stop = start + frame
         chunk = padded[start:stop]
         if len(chunk) < frame:
             chunk = np.pad(chunk, ((0, frame - len(chunk)), (0, 0)))
         event_gain = float(envelope[min(len(data) - 1, start + frame // 2)])
-        gain = 1.0 + (curve - 1.0) * (1.0 - event_gain)
+        local_curve = curve
+        if reference_padded is not None:
+            ref_chunk = reference_padded[start:stop]
+            if len(ref_chunk) < frame:
+                ref_chunk = np.pad(ref_chunk, ((0, frame - len(ref_chunk)), (0, 0)))
+            local_centers = _spectral_collision_peaks(
+                chunk, ref_chunk, sr, lo_hz, hi_hz, max_peaks=4
+            )
+            if local_centers:
+                tracked_centers.extend(local_centers)
+                # Estimate collision strength from normalized spectra at each tracked peak.
+                mono_s = np.mean(chunk, axis=1)
+                mono_r = np.mean(ref_chunk, axis=1)
+                ss = np.abs(np.fft.rfft(mono_s * window))
+                rr = np.abs(np.fft.rfft(mono_r * window))
+                denom_s, denom_r = max(float(np.max(ss)), 1e-9), max(float(np.max(rr)), 1e-9)
+                freqs_local = np.fft.rfftfreq(frame, 1.0 / sr)
+                strengths = []
+                for peak in local_centers:
+                    idx = int(np.argmin(np.abs(freqs_local - peak)))
+                    strengths.append(float(np.sqrt((ss[idx] / denom_s) * (rr[idx] / denom_r))))
+                tracked_strengths.extend(strengths)
+                local_curve = np.ones(len(freqs), dtype=np.float32)
+                multi = np.zeros_like(freqs, dtype=np.float32)
+                for peak in local_centers:
+                    peak_sigma = max(35.0, float(peak) * 0.28)
+                    multi = np.maximum(
+                        multi,
+                        np.exp(-0.5 * ((freqs - peak) / peak_sigma) ** 2).astype(np.float32),
+                    )
+                local_curve[mask] = 1.0 - (1.0 - minimum) * multi[mask]
+        gain = 1.0 + (local_curve - 1.0) * (1.0 - event_gain)
         for channel in range(chunk.shape[1]):
             spectrum = np.fft.rfft(chunk[:, channel] * window)
             rendered = np.fft.irfft(spectrum * gain, n=frame).astype(np.float32)
@@ -361,4 +401,8 @@ def apply_spectral_curve_dynamic_masking(
         "applied": True, "amount": min(0.35, max(0.0, float(amount))),
         "events": len(events), "bands": tuple(b for b, _ in centers),
         "center_hz": center_hz, "center_hz_all": tuple(centers_hz), "sigma_hz": sigma,
+        "tracking": reference_data is not None,
+        "tracked_centers_hz": tuple(tracked_centers),
+        "tracked_strengths": tuple(tracked_strengths),
+        "tracked_frame_count": len(tracked_strengths) // max(1, len(centers_hz)),
     }
