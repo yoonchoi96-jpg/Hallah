@@ -134,7 +134,6 @@ def apply_frequency_dynamic_masking(
     minimum = max(0.0, 1.0 - min(0.35, float(amount)))
     for start in range(0, len(data), hop):
         valid_len = min(frame, len(data) - start)
-        stop = start + valid_len
         padded_stop = start + frame
         chunk = padded[start:padded_stop]
         if len(chunk) < frame:
@@ -147,7 +146,7 @@ def apply_frequency_dynamic_masking(
             spectrum = np.fft.rfft(chunk[:, channel] * window)
             rendered = np.fft.irfft(spectrum * gain, n=frame).astype(np.float32)
             out[start:stop, channel] += rendered * window
-        norm[start:stop] += window * window
+        norm[start : start + valid_len] += window * window
     valid = norm > 1e-8
     out[valid] /= norm[valid, None]
     out[~valid] = 0.0
