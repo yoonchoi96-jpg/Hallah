@@ -245,7 +245,7 @@ def generate_sequence(request: RenderRequest) -> MidiSequence:
         # its observed register and pitch classes rather than competing with it.
         authority_notes = _authority_notes(changes, "melody")
         if authority_notes:
-            low, high = min(authority_notes), max(authority_notes)
+            low = min(authority_notes)
             notes = [
                 MidiNote(min(n.pitch, low - 1), n.start_beat, n.duration_beats, n.velocity, n.channel)
                 for n in notes
