@@ -90,12 +90,12 @@ class WavAnalyzer:
     def _bpm(x, sr):
         if len(x) < sr * 2:
             return None, 0.0
-        step = max(128, int(sr * .02))
+        step = max(128, sr * .02)
         count = len(x) // step
         energy = np.mean(x[:count * step].reshape(count, step) ** 2, axis=1)
         flux = np.maximum(0, np.diff(energy, prepend=energy[0]))
         flux -= np.median(flux)
-        min_lag, max_lag = int(60 / 180 / .02), min(len(flux) - 1, int(60 / 60 / .02))
+        min_lag, max_lag = 60 / 180 / .02, min(len(flux) - 1, 60 / 60 / .02)
         if max_lag <= min_lag:
             return None, 0.0
         autocorr = np.correlate(flux, flux, mode="full")[len(flux) - 1:]
@@ -142,10 +142,10 @@ class WavAnalyzer:
 
     @staticmethod
     def _onset_beats(x, sr, bpm):
-        if bpm is None or len(x) < max(512, int(sr * .05)):
+        if bpm is None or len(x) < max(512, sr * .05):
             return ()
-        hop = max(64, int(sr * .01))
-        frame = max(hop * 4, int(sr * .04))
+        hop = max(64, sr * .01)
+        frame = max(hop * 4, sr * .04)
         if len(x) < frame:
             return ()
         count = 1 + (len(x) - frame) // hop
@@ -161,13 +161,13 @@ class WavAnalyzer:
         candidates = np.flatnonzero(flux > threshold)
         if not len(candidates):
             return ()
-        min_gap = max(1, int(sr * .08 / hop))
+        min_gap = max(1, sr * .08 / hop)
         selected = []
         for idx in candidates:
             if not selected or idx - selected[-1] >= min_gap:
-                selected.append(int(idx))
+                selected.append(idx)
             elif flux[idx] > flux[selected[-1]]:
-                selected[-1] = int(idx)
+                selected[-1] = idx
         beat_seconds = 60.0 / bpm
         return tuple(round((idx * hop / sr) / beat_seconds, 6) for idx in selected)
 
@@ -198,10 +198,10 @@ class WavAnalyzer:
 
     @classmethod
     def _note_events(cls, x, sr, bpm, role):
-        if bpm is None or role == "drums" or len(x) < int(sr * .08):
+        if bpm is None or role == "drums" or len(x) < sr * .08:
             return (), ()
-        frame = max(1024, int(sr * .046))
-        hop = max(256, int(sr * .0116))
+        frame = max(1024, sr * .046)
+        hop = max(256, sr * .0116)
         if len(x) < frame:
             return (), ()
         notes = []
@@ -228,11 +228,11 @@ class WavAnalyzer:
                 events.append((active_pitch, duration))
         if not events:
             return (), ()
-        return tuple(int(p) for p, _ in events), tuple(round(float(d), 6) for _, d in events)
+        return tuple(p for p, _ in events), tuple(round(float(d), 6) for _, d in events)
 
     @staticmethod
     def _chords(x, sr, bpm):
-        if bpm is None or len(x) < int(sr * 0.5):
+        if bpm is None or len(x) < sr * 0.5:
             return (), 0.0
         beat_seconds = 60.0 / bpm
         window_samples = max(1024, int(round(2.0 * beat_seconds * sr)))
@@ -278,7 +278,7 @@ class WavAnalyzer:
 
     @staticmethod
     def _envelope(x, sr):
-        step = max(64, int(sr * .01))
+        step = max(64, sr * .01)
         count = len(x) // step
         if count < 4:
             return 0.0, 0.0, 0.0, 0.0, 0.0, 0.0
@@ -291,7 +291,7 @@ class WavAnalyzer:
             return 0.0, 0.0, 0.0, 0.0, 0.0, 0.0
         onset_rate = float(np.count_nonzero((envelope[1:] > threshold) & (envelope[1:] > envelope[:-1])) / (len(x) / sr))
         attack = peak_idx * step / sr
-        active_end = int(active[-1])
+        active_end = active[-1]
         decay = max(0.0, (active_end - peak_idx) * step / sr)
         sustain = float(np.median(envelope[active[min(len(active)-1, len(active)//2):]]) / peak_value)
         release = max(0.0, (len(envelope) - active_end - 1) * step / sr)
