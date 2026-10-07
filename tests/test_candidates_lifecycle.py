@@ -108,3 +108,37 @@ def test_apply_creates_new_context_and_keeps_parent_unchanged():
     assert context.bpm == 120
     assert applied.bpm == 128
     assert next(c.status for c in applied.candidates if c.id == "b") == "applied"
+
+
+def test_apply_commits_authority_and_adaptation_changes():
+    context = SongContext(
+        version=0,
+        authorities=[MusicalAuthority("guitar", "harmony", 0.8)],
+        adaptation_overrides={"drums": {"rhythm": "guitar"}},
+        candidates=[
+            Candidate(
+                "a",
+                "bold",
+                "make drums follow guitar pitch",
+                "r",
+                0,
+                parameter_changes={
+                    "authority_changes": {"harmony": "piano"},
+                    "adaptation_overrides": {
+                        "drums": {"pitch": "guitar"},
+                    },
+                },
+            )
+        ],
+    )
+    selected = select_candidate(context, "a")
+    applied = apply_candidate(selected, next(c for c in selected.candidates if c.id == "a"))
+
+    harmony = [a for a in applied.authorities if a.dimension == "harmony"]
+    assert len(harmony) == 1
+    assert harmony[0].source_id == "piano"
+    assert harmony[0].confidence == 1.0
+    assert applied.adaptation_overrides["drums"] == {
+        "rhythm": "guitar",
+        "pitch": "guitar",
+    }
