@@ -208,7 +208,7 @@ def _authority_ids(changes: Mapping[str, object], role: str) -> tuple[str, ...]:
 
 def _apply_authority_register(notes: list[MidiNote], role: str) -> list[MidiNote]:
     if role == "melody":
-        return [MidiNote(max(60, note.pitch), note.start_beat, note.duration_beats, note.velocity, note.channel) for note in notes]
+        return [MidiNote(max(48, note.pitch), note.start_beat, note.duration_beats, note.velocity, note.channel) for note in notes]
     if role == "bass":
         return [MidiNote(min(55, note.pitch), note.start_beat, note.duration_beats, note.velocity, note.channel) for note in notes]
     return notes
