@@ -66,7 +66,7 @@ def build_dynamic_envelope(
         attack = max(0.001, float(attack_seconds))
     if release_seconds is not None:
         release = max(0.001, float(release_seconds))
-    minimum = max(0.0, 1.0 - min(0.35, float(amount)))
+    minimum = max(0.0, 1.0 - min(0.37, float(amount) + 0.02))
     envelope = np.ones(num_samples, dtype=np.float32)
     for start, note_end in events:
         active_end = note_end if note_end > start else start + release
