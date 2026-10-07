@@ -64,7 +64,8 @@ def test_fixed_constraint_is_enforced():
         parameter_changes={"changes": {"drums": "new"}},
     )
     result = validate_candidate(context, candidate)
-    assert result.valid
+    assert not result.valid
+    assert result.conflicts
 
 
 def test_authority_override_is_allowed():
@@ -80,8 +81,7 @@ def test_authority_override_is_allowed():
         parameter_changes={"authority_changes": {"harmony": "piano"}},
     )
     result = validate_candidate(context, candidate)
-    assert not result.valid
-    assert result.conflicts
+    assert result.valid
 
 
 def test_apply_creates_new_context_and_keeps_parent_unchanged():
