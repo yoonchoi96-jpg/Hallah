@@ -29,7 +29,13 @@ def build_song_context(analyses: list[AudioAnalysis], title: str = "Untitled") -
     )
     ctx.relationships = relationships
     ctx.constraints = constraints
-    ctx.conflicts = merge_conflicts(relationship_conflicts)
+    tonal_signatures = {(a.key, a.scale) for a in analyses if a.key and a.scale}
+    tonal_conflicts = (
+        ["Tonal disagreement: analyzed assets suggest different key/scale."]
+        if len(tonal_signatures) > 1
+        else []
+    )
+    ctx.conflicts = merge_conflicts(relationship_conflicts, tonal_conflicts)
 
     rhythm = _best_for_dimension(analyses, ctx.authorities, "rhythm")
     tonal = _best_for_dimension(analyses, ctx.authorities, "harmony")
