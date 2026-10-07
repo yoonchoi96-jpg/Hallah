@@ -27,17 +27,47 @@ def resolve_masking(source_id: str, authority_analysis: dict[str, dict[str, obje
     source = authority_analysis.get(source_id, {})
     source_priority = _priority(source)
     decisions = []
+    relationship_index: dict[tuple[str, str], list[dict[str, object]]] = {}
+    for relationship in relationships:
+        if not isinstance(relationship, dict):
+            continue
+        rel_source = relationship.get("source_id")
+        rel_target = relationship.get("target_id")
+        rel_type = relationship.get("type")
+        if isinstance(rel_source, str) and isinstance(rel_target, str) and isinstance(rel_type, str):
+            relationship_index.setdefault((rel_source, rel_target), []).append(relationship)
+
     for ref_id, ref in authority_analysis.items():
         if ref_id == source_id:
             continue
-        ref_priority = _priority(ref)
+        explicit = relationship_index.get((source_id, ref_id), []) + relationship_index.get((ref_id, source_id), [])
+        if any(str(rel.get("type")) == "conflict" for rel in explicit):
+            # Explicit conflicts are still eligible for masking; the relationship
+            # raises the need for a decision even when role priorities are equal.
+            conflict_boost = 12.0
+        else:
+            conflict_boost = 0.0
+        explicit_authority = [
+            rel for rel in explicit
+            if str(rel.get("type")) == "authority"
+            and (rel.get("dimension") is None or str(rel.get("dimension")) == str(source.get("dimension", "")))
+        ]
+        if explicit_authority:
+            ref_priority = max(_priority(ref), 100.0 + max(float(rel.get("confidence", 1.0) or 1.0) for rel in explicit_authority) * 10.0)
+        else:
+            ref_priority = _priority(ref) + conflict_boost
         shared = []
         for band, key in (("low", "low_energy_ratio"), ("mid", "mid_energy_ratio"), ("high", "high_energy_ratio")):
             if (source.get(key, 0) or 0) > 0.10 and (ref.get(key, 0) or 0) > 0.10:
                 shared.append(band)
         if not shared or source_priority >= ref_priority:
             continue
-        decisions.append({"reference_id": ref_id, "bands": tuple(shared), "ranges": {band: _band_ranges(source, 48000)[band] for band in shared}, "priority": ref_priority, "amount": min(0.24, 0.08 + (ref_priority - source_priority) / 500.0), "reason": f"{ref_id} has higher musical-role priority ({ref_priority:.0f} vs {source_priority:.0f})."})
+        reason = f"{ref_id} has higher musical-role priority ({ref_priority:.0f} vs {source_priority:.0f})."
+        if explicit_authority:
+            reason = f"{ref_id} is an explicit authority relationship for {source.get('dimension', 'the relevant dimension')}."
+        elif conflict_boost:
+            reason = f"{ref_id} has an explicit musical conflict relationship."
+        decisions.append({"reference_id": ref_id, "bands": tuple(shared), "ranges": {band: _band_ranges(source, 48000)[band] for band in shared}, "priority": ref_priority, "amount": min(0.24, 0.08 + (ref_priority - source_priority) / 500.0), "reason": reason})
     return {"source_priority": source_priority, "decisions": tuple(decisions)}
 
 def build_relationship_map(authority_analysis: dict[str, dict[str, object]], relationships: tuple[dict[str, object], ...] = ()) -> dict[str, dict[str, object]]:
