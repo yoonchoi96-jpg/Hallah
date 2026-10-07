@@ -756,6 +756,7 @@ def apply_spectral_curve_dynamic_masking(
         "smoothed_centers_hz": tuple(smoothed_centers),
         "smoothed_strengths": tuple(smoothed_strengths),
         "tracked_frame_count": len(smoothed_centers),
+        "reference_id": str(reference_meta.get("_source_id", "")),
         "tracking_strength_max": max(tracked_strengths, default=0.0),
         "tracking_strength_mean": float(np.mean(tracked_strengths)) if tracked_strengths else 0.0,
         "smoothed_strength_max": max(smoothed_strengths, default=0.0),
