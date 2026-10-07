@@ -1,7 +1,7 @@
 """Deterministic analysis orchestration for Music Agent V0."""
 
-from dataclasses import dataclass
 from collections.abc import Sequence
+from dataclasses import dataclass
 from typing import Protocol
 
 from core.analysis.contracts import AudioAnalysis
