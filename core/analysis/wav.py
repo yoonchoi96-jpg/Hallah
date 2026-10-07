@@ -94,12 +94,12 @@ class WavAnalyzer:
     def _bpm(x, sr):
         if len(x) < sr * 2:
             return None, 0.0
-        step = max(128, sr * .02)
+        step = max(128, int(round(float(sr * .02))))
         count = len(x) // step
         energy = np.mean(x[:count * step].reshape(count, step) ** 2, axis=1)
         flux = np.maximum(0, np.diff(energy, prepend=energy[0]))
         flux -= np.median(flux)
-        min_lag, max_lag = 60 / 180 / .02, min(len(flux) - 1, 60 / 60 / .02)
+        min_lag, max_lag = int(round(60 / 180 / .02)), int(round(min(len(flux) - 1, 60 / 60 / .02)))
         if max_lag <= min_lag:
             return None, 0.0
         autocorr = np.correlate(flux, flux, mode="full")[len(flux) - 1:]
@@ -148,8 +148,8 @@ class WavAnalyzer:
     def _onset_beats(x, sr, bpm):
         if bpm is None or len(x) < max(512, sr * .05):
             return ()
-        hop = max(64, sr * .01)
-        frame = max(hop * 4, sr * .04)
+        hop = max(64, int(round(float(sr * .01))))
+        frame = max(hop * 4, int(round(float(sr * .04))))
         if len(x) < frame:
             return ()
         count = 1 + (len(x) - frame) // hop
@@ -204,8 +204,8 @@ class WavAnalyzer:
     def _note_events(cls, x, sr, bpm, role):
         if bpm is None or role == "drums" or len(x) < sr * .08:
             return (), ()
-        frame = max(1024, sr * .046)
-        hop = max(256, sr * .0116)
+        frame = max(1024, int(round(float(sr * .046))))
+        hop = max(256, int(round(float(sr * .0116))))
         if len(x) < frame:
             return (), ()
         notes = []
@@ -239,7 +239,7 @@ class WavAnalyzer:
         if bpm is None or len(x) < sr * 0.5:
             return (), 0.0
         beat_seconds = 60.0 / bpm
-        window_samples = max(1024, round(2.0 * beat_seconds * sr))
+        window_samples = max(1024, int(round(float(2.0 * beat_seconds * sr))))
         if len(x) < window_samples:
             return (), 0.0
         names = ("C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B")
@@ -282,7 +282,7 @@ class WavAnalyzer:
 
     @staticmethod
     def _envelope(x, sr):
-        step = max(64, sr * .01)
+        step = max(64, int(round(float(sr * .01))))
         count = len(x) // step
         if count < 4:
             return 0.0, 0.0, 0.0, 0.0, 0.0, 0.0
