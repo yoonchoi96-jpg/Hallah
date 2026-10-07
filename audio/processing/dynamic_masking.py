@@ -91,7 +91,6 @@ def build_dynamic_envelope(
         "amount": min(0.35, max(0.0, float(amount))),
         "events": len(events),
         "reference_id": str(reference_meta.get("_source_id", "")),
-        "alignment": alignment_meta,
     }
 
 
