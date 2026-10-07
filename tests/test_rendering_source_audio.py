@@ -114,7 +114,7 @@ def test_source_audio_candidate_directions_have_distinct_gain_character(tmp_path
         data,_=generator._read(Path(result.artifact_ref))
         peaks[direction]=float(np.max(np.abs(data)))
         assert result.metadata["candidate_direction"] == direction
-    assert len(set(round(value, 4) for value in peaks.values())) == 4
+    assert len({round(value, 4) for value in peaks.values()}) == 4
 
 
 def test_source_audio_resolves_logical_asset_ids(tmp_path):
