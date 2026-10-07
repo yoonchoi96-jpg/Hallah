@@ -538,7 +538,7 @@ def apply_spectral_curve_dynamic_masking(
         gain_mid = 1.0 + (local_curve - 1.0) * (1.0 - event_gain)
         gain_side = gain_mid
         if reference_padded is not None and mask.any():
-            ref_chunk = reference_padded[start:padded_stop]
+            ref_chunk = reference_padded[start : start + frame]
             if len(ref_chunk) < frame:
                 ref_chunk = np.pad(ref_chunk, ((0, frame - len(ref_chunk)), (0, 0)))
             mid_centers, side_centers = _spectral_component_collision(
