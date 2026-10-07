@@ -1,7 +1,7 @@
 from agent.executive_producer.default import DefaultExecutiveProducer
 from agent.executive_producer.contracts import ProductionRequest
 from core.analysis.contracts import AudioAnalysis
-from core.analysis.engine import analyze_assets
+from core.analysis.engine import analyze_assets, analyze_project_assets
 from core.candidates.engine import build_candidates
 from core.music_context.authority import infer_authority
 from core.music_context.models import SongContext
@@ -52,3 +52,37 @@ def test_candidates_preserve_authority_for_requested_dimension():
     constraints = candidate[0].parameter_changes["constraints"]
     assert "authority:harmony:guitar-loop:0.970" in constraints
     assert "authority:rhythm:drum-loop:0.910" not in constraints
+
+
+def test_project_analysis_resolves_paths_and_preserves_logical_ids(tmp_path):
+    from core.project.models import AudioAsset, MusicProject
+
+    class ProjectAnalyzer:
+        def __init__(self):
+            self.paths = []
+
+        def analyze(self, asset_id: str) -> AudioAnalysis:
+            self.paths.append(asset_id)
+            return AudioAnalysis(
+                asset_id=asset_id,
+                role="detected",
+                confidence={"role": 0.4},
+            )
+
+    first = tmp_path / "drums.wav"
+    second = tmp_path / "guitar.wav"
+    project = MusicProject(
+        id="analysis-project",
+        context=SongContext(version=1),
+        assets=[
+            AudioAsset(id="drums-main", path=str(first), role_hint="drums"),
+            AudioAsset(id="guitar-main", path=str(second), role_hint="guitar"),
+        ],
+    )
+    analyzer = ProjectAnalyzer()
+    batch = analyze_project_assets(analyzer, project)
+
+    assert analyzer.paths == [str(first), str(second)]
+    assert list(batch.by_asset()) == ["drums-main", "guitar-main"]
+    assert batch.by_asset()["drums-main"].role == "drums"
+    assert batch.by_asset()["drums-main"].confidence["role_hint"] == 1.0
