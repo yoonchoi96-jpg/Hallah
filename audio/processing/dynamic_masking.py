@@ -407,11 +407,15 @@ def apply_spectral_curve_dynamic_masking(
         curve[mask] = 1.0 - (1.0 - minimum) * multi_curve[mask]
     envelope, _ = build_dynamic_envelope(len(data), sr, source_meta, reference_meta, amount)
     tracked_centers: list[float] = []
+    tracked_side_centers: list[float] = []
+    tracked_side_strengths: list[float] = []
     tracked_strengths: list[float] = []
     smoothed_centers: list[float] = []
     smoothed_strengths: list[float] = []
     previous_centers: list[float] = []
     previous_strengths: list[float] = []
+    previous_side_centers: list[float] = []
+    previous_side_strengths: list[float] = []
     max_center_jump_hz = 180.0
     center_smoothing = 0.35
     strength_attack = 0.45
@@ -433,9 +437,10 @@ def apply_spectral_curve_dynamic_masking(
             ref_chunk = reference_padded[start:stop]
             if len(ref_chunk) < frame:
                 ref_chunk = np.pad(ref_chunk, ((0, frame - len(ref_chunk)), (0, 0)))
-            local_centers = _spectral_collision_peaks(
-                chunk, ref_chunk, sr, lo_hz, hi_hz, max_peaks=4
+            mid_centers, side_centers = _spectral_component_collision(
+                chunk, ref_chunk, sr, lo_hz, hi_hz
             )
+            local_centers = mid_centers
             mono_s = np.mean(chunk, axis=1)
             mono_r = np.mean(ref_chunk, axis=1)
             ss = np.abs(np.fft.rfft(mono_s * window))
@@ -446,11 +451,31 @@ def apply_spectral_curve_dynamic_masking(
             rms_r = max(float(np.sqrt(np.mean(np.square(mono_r)))), 1e-9)
             level_balance = min(1.0, rms_s / rms_r, rms_r / rms_s)
             freqs_local = np.fft.rfftfreq(frame, 1.0 / sr)
-            raw_strengths = []
-            for peak in local_centers:
-                idx = int(np.argmin(np.abs(freqs_local - peak)))
-                spectral_overlap = float(np.sqrt((ss[idx] / denom_s) * (rr[idx] / denom_r)))
-                raw_strengths.append(spectral_overlap * level_balance)
+
+            def component_strengths(
+                source_component: np.ndarray,
+                reference_component: np.ndarray,
+                peaks: tuple[float, ...],
+            ) -> list[float]:
+                ss_component = np.abs(np.fft.rfft(source_component * window))
+                rr_component = np.abs(np.fft.rfft(reference_component * window))
+                ds = max(float(np.max(ss_component)), 1e-9)
+                dr = max(float(np.max(rr_component)), 1e-9)
+                rms_a = max(float(np.sqrt(np.mean(np.square(source_component)))), 1e-9)
+                rms_b = max(float(np.sqrt(np.mean(np.square(reference_component)))), 1e-9)
+                balance = min(1.0, rms_a / rms_b, rms_b / rms_a)
+                return [
+                    float(np.sqrt(
+                        (ss_component[int(np.argmin(np.abs(freqs_local - peak)))] / ds)
+                        * (rr_component[int(np.argmin(np.abs(freqs_local - peak)))] / dr)
+                    ) * balance)
+                    for peak in peaks
+                ]
+
+            source_mid, source_side = _stereo_components(chunk)
+            reference_mid, reference_side = _stereo_components(ref_chunk)
+            mid_strengths = component_strengths(source_mid, reference_mid, mid_centers)
+            side_strengths = component_strengths(source_side, reference_side, side_centers)
 
             # Track peaks across adjacent frames. Limit movement first, then
             # smooth frequency so a changing collision does not jump abruptly.
@@ -486,13 +511,47 @@ def apply_spectral_curve_dynamic_masking(
 
             previous_centers = next_centers
             previous_strengths = next_strengths
-            if next_centers:
+            # Smooth the side path independently. Side-only collisions
+            # must not force equal ducking in the Mid path.
+            current_side = list(side_centers)
+            next_side_centers: list[float] = []
+            next_side_strengths: list[float] = []
+            matched_side = set()
+            for peak, raw_strength in zip(current_side, side_strengths):
+                best = None
+                best_distance = max_center_jump_hz + 1.0
+                for idx, previous in enumerate(previous_side_centers):
+                    if idx in matched_side:
+                        continue
+                    distance = abs(float(peak) - float(previous))
+                    if distance < best_distance:
+                        best = idx
+                        best_distance = distance
+                if best is None:
+                    smooth_peak = float(peak)
+                    smooth_strength = float(raw_strength)
+                else:
+                    matched_side.add(best)
+                    previous = float(previous_side_centers[best])
+                    delta = max(-max_center_jump_hz, min(max_center_jump_hz, float(peak) - previous))
+                    smooth_peak = previous + center_smoothing * delta
+                    old_strength = float(previous_side_strengths[best])
+                    coeff = strength_attack if raw_strength > old_strength else strength_release
+                    smooth_strength = old_strength + coeff * (float(raw_strength) - old_strength)
+                next_side_centers.append(smooth_peak)
+                next_side_strengths.append(smooth_strength)
+            previous_side_centers = next_side_centers
+            previous_side_strengths = next_side_strengths
+            tracked_side_centers.extend(float(v) for v in side_centers)
+            tracked_side_strengths.extend(float(v) for v in side_strengths)
+
+            if next_centers or next_side_centers:
                 tracked_centers.extend(float(v) for v in local_centers)
-                tracked_strengths.extend(float(v) for v in raw_strengths)
+                tracked_strengths.extend(float(v) for v in mid_strengths)
                 smoothed_centers.extend(next_centers)
                 smoothed_strengths.extend(next_strengths)
-                local_curve = np.ones(len(freqs), dtype=np.float32)
-                multi = np.zeros_like(freqs, dtype=np.float32)
+                local_curve_mid = np.ones(len(freqs), dtype=np.float32)
+                local_curve_side = np.ones(len(freqs), dtype=np.float32)
                 for peak, strength in zip(next_centers, next_strengths):
                     peak_sigma = max(35.0, float(peak) * 0.28)
                     peak_curve = np.exp(
@@ -503,13 +562,32 @@ def apply_spectral_curve_dynamic_masking(
                         1.0, max(0.0, (float(strength) - strength_floor) / (1.0 - strength_floor))
                     )
                     depth = (1.0 - minimum) * (normalized_strength ** 1.5)
-                    multi = np.maximum(multi, peak_curve * depth)
-                local_curve[mask] = 1.0 - multi[mask]
-        gain = 1.0 + (local_curve - 1.0) * (1.0 - event_gain)
-        for channel in range(chunk.shape[1]):
-            spectrum = np.fft.rfft(chunk[:, channel] * window)
-            rendered = np.fft.irfft(spectrum * gain, n=frame).astype(np.float32)
-            out[start:stop, channel] += rendered * window
+                    local_curve_mid = np.minimum(local_curve_mid, 1.0 - peak_curve * depth)
+                for peak, strength in zip(next_side_centers, next_side_strengths):
+                    peak_sigma = max(35.0, float(peak) * 0.28)
+                    peak_curve = np.exp(-0.5 * ((freqs - peak) / peak_sigma) ** 2).astype(np.float32)
+                    normalized_strength = min(1.0, max(0.0, (float(strength) - 0.12) / 0.88))
+                    depth = (1.0 - minimum) * (normalized_strength ** 1.5)
+                    local_curve_side = np.minimum(local_curve_side, 1.0 - peak_curve * depth)
+                local_curve_mid[~mask] = 1.0
+                local_curve_side[~mask] = 1.0
+                gain_mid = 1.0 + (local_curve_mid - 1.0) * (1.0 - event_gain)
+                gain_side = 1.0 + (local_curve_side - 1.0) * (1.0 - event_gain)
+        else:
+            gain_mid = 1.0 + (local_curve - 1.0) * (1.0 - event_gain)
+            gain_side = gain_mid
+        if chunk.shape[1] == 1:
+            spectrum = np.fft.rfft(chunk[:, 0] * window)
+            rendered = np.fft.irfft(spectrum * gain_mid, n=frame).astype(np.float32)
+            out[start:stop, 0] += rendered * window
+        else:
+            mid, side = _stereo_components(chunk)
+            mid_rendered = np.fft.irfft(np.fft.rfft(mid * window) * gain_mid, n=frame).astype(np.float32)
+            side_rendered = np.fft.irfft(np.fft.rfft(side * window) * gain_side, n=frame).astype(np.float32)
+            left = (mid_rendered + side_rendered) * window
+            right = (mid_rendered - side_rendered) * window
+            out[start:stop, 0] += left
+            out[start:stop, 1] += right
         norm[start:stop] += window * window
     valid = norm > 1e-8
     out[valid] /= norm[valid, None]
