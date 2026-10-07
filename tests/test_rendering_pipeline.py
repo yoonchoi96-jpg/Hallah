@@ -91,3 +91,27 @@ def test_four_audio_candidates_render_as_distinct_cached_artifacts(tmp_path):
     assert len(refs) == 4
     assert len(set(refs)) == 4
     assert all(candidate.status == "preview_ready" for candidate in rendered.candidates)
+
+
+def test_project_assets_are_injected_into_render_request(tmp_path):
+    from core.project.models import AudioAsset, MusicProject
+    context = SongContext(version=4)
+    candidate = build_candidates(context, "render project")[0]
+    source = tmp_path / "guitar.wav"
+    project = MusicProject(
+        id="project-v1",
+        context=context,
+        assets=[AudioAsset(id="guitar-main", path=str(source), role_hint="guitar")],
+    )
+    request = candidate_to_render_request(candidate, context, project=project)
+    assert request.parameter_changes["asset_paths"]["guitar-main"] == str(source)
+
+
+def test_project_context_version_must_match_render_context():
+    from core.project.models import MusicProject
+    context = SongContext(version=4)
+    stale = MusicProject(id="stale", context=SongContext(version=3), assets=[])
+    candidate = build_candidates(context, "render project")[0]
+    import pytest
+    with pytest.raises(ValueError, match="belongs to context"):
+        candidate_to_render_request(candidate, context, project=stale)
