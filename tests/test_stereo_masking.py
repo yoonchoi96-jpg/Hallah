@@ -43,9 +43,14 @@ def test_center_reference_ducks_center_source_more_than_side_source():
     center_out, center_meta = _render(center, reference)
     side_out, side_meta = _render(side, reference)
 
-    center_mid = np.mean(center_out, axis=1)
-    side_mid = np.mean(side_out, axis=1)
-    assert _rms(center_mid[2200:3800]) < _rms(side_mid[2200:3800]) * 0.85
+    center_mid_in = np.mean(center, axis=1)
+    center_mid_out = np.mean(center_out, axis=1)
+    side_side_in = (side[:, 0] - side[:, 1]) * 0.5
+    side_side_out = (side_out[:, 0] - side_out[:, 1]) * 0.5
+    center_ratio = _rms(center_mid_out[2200:3800]) / _rms(center_mid_in[2200:3800])
+    side_ratio = _rms(side_side_out[2200:3800]) / _rms(side_side_in[2200:3800])
+    assert center_ratio < 0.85
+    assert side_ratio > 0.95
     assert center_meta["tracking_strength_max"] > 0.5
     assert side_meta["tracking_strength_max"] < center_meta["tracking_strength_max"]
 
