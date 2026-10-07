@@ -272,7 +272,7 @@ def _spectral_component_collision(
         spacing = max(2, int(round(float(45.0 / (freqs[1] - freqs[0])))))
         for _ in range(4):
             i = int(np.argmax(values))
-            if values[i] < 0.12:
+            if values[i] < 0.08:
                 break
             idx = indices[i]
             center_bark = _hz_to_bark(np.asarray([freqs[idx]], dtype=np.float32))[0]
