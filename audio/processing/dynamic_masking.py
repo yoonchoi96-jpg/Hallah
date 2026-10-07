@@ -251,7 +251,7 @@ def _spectral_component_collision(
         reference_cb = _critical_band_smoothing(reference_spec, freqs)
         src_peak = max(float(np.max(source_cb)), 1e-9)
         ref_peak = max(float(np.max(reference_cb)), 1e-9)
-        if ref_peak / src_peak < 0.04:
+        if ref_peak / src_peak < 0.01:
             return ()
         src = source_cb / src_peak
         ref = reference_cb / ref_peak
@@ -271,7 +271,7 @@ def _spectral_component_collision(
         spacing = max(2, int(round(float(45.0 / (freqs[1] - freqs[0])))))
         for _ in range(4):
             i = int(np.argmax(values))
-            if values[i] < 0.015:
+            if values[i] < 0.005:
                 break
             idx = indices[i]
             center_bark = _hz_to_bark(np.asarray([freqs[idx]], dtype=np.float32))[0]
@@ -441,7 +441,7 @@ def _estimate_reference_lag_samples(source_data: np.ndarray, reference_data: np.
         if score > best_score:
             best_score = score
             best_lag = lag
-    return int(best_lag)
+    return int(round(best_lag / 25.0) * 25)
 
 def _align_reference_to_source(source_data: np.ndarray, reference_data: np.ndarray, sr: int, source_meta: dict[str, object], reference_meta: dict[str, object]) -> tuple[np.ndarray, dict[str, object], dict[str, object]]:
     """Align reference audio and event timing to the source musical timeline."""
@@ -711,7 +711,7 @@ def apply_spectral_curve_dynamic_masking(
                     normalized_strength = min(
                         1.0, max(0.0, (float(strength) - strength_floor) / (1.0 - strength_floor))
                     )
-                    depth = (1.0 - minimum) * (normalized_strength ** 0.5)
+                    depth = (1.0 - minimum) * (normalized_strength ** 0.5) * 1.35
                     local_curve_mid = np.minimum(local_curve_mid, 1.0 - peak_curve * depth)
                 for peak, strength in zip(next_side_centers, next_side_strengths):
                     peak_sigma = max(35.0, float(peak) * 0.28)
