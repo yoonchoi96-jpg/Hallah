@@ -245,11 +245,16 @@ def _spectral_component_collision(
         ref_peak = max(float(np.max(reference_cb)), 1e-9)
         src = source_cb / src_peak
         ref = reference_cb / ref_peak
-        # Psychoacoustic floor: weak spectral tails should not trigger strong
-        # masking merely because they occupy the same Bark band.
-        source_threshold = np.maximum(0.0, (src - 0.10) / 0.90)
-        reference_threshold = np.maximum(0.0, (ref - 0.10) / 0.90)
-        collision = np.sqrt(source_threshold * reference_threshold)
+
+        # Use the same adaptive local floor as collision-strength calibration:
+        # broadband/noise-like spectra get a higher floor, while concentrated
+        # tonal spectra retain sensitivity to genuine critical-band overlap.
+        source_floor = float(np.clip(np.percentile(source_cb, 25) / src_peak + 0.04, 0.06, 0.22))
+        reference_floor = float(np.clip(np.percentile(reference_cb, 25) / ref_peak + 0.04, 0.06, 0.22))
+        source_active = np.maximum(0.0, (src - source_floor) / max(1e-6, 1.0 - source_floor))
+        reference_active = np.maximum(0.0, (ref - reference_floor) / max(1e-6, 1.0 - reference_floor))
+        collision = np.sqrt(source_active * reference_active)
+
         indices = np.flatnonzero(mask)
         values = collision[indices].copy()
         peaks = []
