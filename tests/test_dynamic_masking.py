@@ -111,3 +111,17 @@ def test_spectral_curve_dynamic_masking_has_localized_curve():
     assert meta["applied"] is True
     assert meta["center_hz"] == 1000.0
     assert float(np.sqrt(np.mean(out[1800:3200, 0] ** 2))) < float(np.sqrt(np.mean(data[1800:3200, 0] ** 2)))
+
+
+def test_spectral_curve_uses_source_peak_near_reference():
+    from audio.processing.dynamic_masking import apply_spectral_curve_dynamic_masking
+    sr = 8000
+    time = np.arange(8000, dtype=np.float32) / sr
+    data = np.column_stack([np.sin(2 * np.pi * 1200 * time)]).astype(np.float32)
+    source = {"role": "guitar", "bpm": 60.0}
+    reference = {"role": "vocal", "bpm": 60.0, "onset_beats": (0.25,), "spectral_centroid_hz": 1000.0, "_source_id": "vocal"}
+    _, meta = apply_spectral_curve_dynamic_masking(
+        data, sr, source, reference, 0.30, bands=("mid",), ranges={"mid": (500.0, 1800.0)}
+    )
+    assert 1100.0 <= float(meta["center_hz"]) <= 1300.0
+    assert float(meta["sigma_hz"]) < 400.0
