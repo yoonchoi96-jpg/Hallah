@@ -483,7 +483,7 @@ def apply_spectral_curve_dynamic_masking(
             matched_previous = set()
             next_centers: list[float] = []
             next_strengths: list[float] = []
-            for peak, raw_strength in zip(current, raw_strengths):
+            for peak, raw_strength in zip(current, mid_strengths):
                 best = None
                 best_distance = max_center_jump_hz + 1.0
                 for idx, previous in enumerate(previous_centers):
@@ -597,7 +597,10 @@ def apply_spectral_curve_dynamic_masking(
         "events": len(events), "bands": tuple(b for b, _ in centers),
         "center_hz": center_hz, "center_hz_all": tuple(centers_hz), "sigma_hz": sigma,
         "tracking": reference_data is not None,
+        "stereo_mode": "mid_side" if data.shape[1] >= 2 else "mid_mono",
         "tracked_centers_hz": tuple(tracked_centers),
+        "tracked_side_centers_hz": tuple(tracked_side_centers),
+        "tracked_side_strengths": tuple(tracked_side_strengths),
         "tracked_strengths": tuple(tracked_strengths),
         "smoothed_centers_hz": tuple(smoothed_centers),
         "smoothed_strengths": tuple(smoothed_strengths),
