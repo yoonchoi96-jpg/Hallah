@@ -38,3 +38,9 @@ module = ["core.analysis.wav"]
 disallow_untyped_defs = false
 disallow_untyped_calls = false
 disallow_any_generics = false
+
+[tool.ruff.lint.per-file-ignores]
+"core/analysis/wav.py" = ["RUF046"]
+"audio/processing/dynamic_masking.py" = ["RUF046"]
+"audio/rendering/mock.py" = ["RUF046"]
+"audio/rendering/source.py" = ["RUF046"]
