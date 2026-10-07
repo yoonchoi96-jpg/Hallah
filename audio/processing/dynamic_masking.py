@@ -428,9 +428,10 @@ def apply_spectral_curve_dynamic_masking(
     strength_release = 0.16
     reference_padded = None
     if reference_data is not None and len(reference_data):
+        reference_array = reference_data.astype(np.float32, copy=False)
         reference_padded = np.pad(
-            reference_data.astype(np.float32, copy=False),
-            ((0, max(0, frame - len(reference_data))), (0, 0)),
+            reference_array,
+            ((0, max(0, len(data) - len(reference_array))), (0, 0)),
         )
     for start in range(0, len(data), hop):
         stop = start + frame
@@ -447,15 +448,6 @@ def apply_spectral_curve_dynamic_masking(
                 chunk, ref_chunk, sr, lo_hz, hi_hz
             )
             local_centers = mid_centers
-            mono_s = np.mean(chunk, axis=1)
-            mono_r = np.mean(ref_chunk, axis=1)
-            ss = np.abs(np.fft.rfft(mono_s * window))
-            rr = np.abs(np.fft.rfft(mono_r * window))
-            denom_s = max(float(np.max(ss)), 1e-9)
-            denom_r = max(float(np.max(rr)), 1e-9)
-            rms_s = max(float(np.sqrt(np.mean(np.square(mono_s)))), 1e-9)
-            rms_r = max(float(np.sqrt(np.mean(np.square(mono_r)))), 1e-9)
-            level_balance = min(1.0, rms_s / rms_r, rms_r / rms_s)
             freqs_local = np.fft.rfftfreq(frame, 1.0 / sr)
 
             def component_strengths(
@@ -465,8 +457,6 @@ def apply_spectral_curve_dynamic_masking(
             ) -> list[float]:
                 ss_component = np.abs(np.fft.rfft(source_component * window))
                 rr_component = np.abs(np.fft.rfft(reference_component * window))
-                ds = max(float(np.max(ss_component)), 1e-9)
-                dr = max(float(np.max(rr_component)), 1e-9)
                 rms_a = max(float(np.sqrt(np.mean(np.square(source_component)))), 1e-9)
                 rms_b = max(float(np.sqrt(np.mean(np.square(reference_component)))), 1e-9)
                 balance = min(1.0, rms_a / rms_b, rms_b / rms_a)
