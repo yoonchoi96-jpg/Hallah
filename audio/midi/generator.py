@@ -225,7 +225,6 @@ def generate_sequence(request: RenderRequest) -> MidiSequence:
         chords = authority_harmony
     scale_name = str(changes.get("scale", "major"))
     role = _role_from_constraints(changes) or _role(request.intent)
-    authorities = _authority_ids(changes, role)
     if role == "bass":
         notes = _bass_notes(chords, root, direction)
         # A low-end authority owns the foundation; follow its observed pitches
