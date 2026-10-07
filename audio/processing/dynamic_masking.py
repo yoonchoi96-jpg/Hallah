@@ -349,7 +349,9 @@ def _resample_reference_to_bpm(reference_data: np.ndarray, reference_bpm: float,
     """Map reference musical time onto the source BPM timeline."""
     if reference_data.size == 0 or reference_bpm <= 0 or source_bpm <= 0:
         return reference_data.astype(np.float32, copy=True), 1.0
-    ratio = float(source_bpm) / float(reference_bpm)
+    # Source time per reference sample scales by reference_bpm/source_bpm:
+    # a 120 BPM reference stretched onto a 60 BPM source becomes 2x longer.
+    ratio = float(reference_bpm) / float(source_bpm)
     if abs(ratio - 1.0) < 1e-6:
         return reference_data.astype(np.float32, copy=True), 1.0
     target_length = max(1, int(round(len(reference_data) * ratio)))
