@@ -125,3 +125,18 @@ def test_spectral_curve_uses_source_peak_near_reference():
     )
     assert 1100.0 <= float(meta["center_hz"]) <= 1300.0
     assert float(meta["sigma_hz"]) < 400.0
+
+
+def test_spectral_curve_detects_multiple_collision_peaks():
+    from audio.processing.dynamic_masking import apply_spectral_curve_dynamic_masking
+    sr = 8000
+    time = np.arange(8000, dtype=np.float32) / sr
+    data = np.column_stack([0.8 * np.sin(2 * np.pi * 900 * time) + 0.7 * np.sin(2 * np.pi * 1400 * time)]).astype(np.float32)
+    source = {"role": "guitar", "bpm": 60.0}
+    reference = {"role": "vocal", "bpm": 60.0, "onset_beats": (0.25,), "spectral_centroid_hz": 1100.0, "_source_id": "vocal"}
+    _, meta = apply_spectral_curve_dynamic_masking(
+        data, sr, source, reference, 0.30, bands=("mid",), ranges={"mid": (600.0, 1700.0)}
+    )
+    centers = tuple(float(x) for x in meta["center_hz_all"])
+    assert any(abs(x - 900.0) < 60.0 for x in centers)
+    assert any(abs(x - 1400.0) < 60.0 for x in centers)
