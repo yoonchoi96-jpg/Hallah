@@ -38,6 +38,10 @@ class MusicProject:
         """Return project asset IDs in deterministic project order."""
         return tuple(asset.id for asset in self.assets)
 
+    def with_context(self, context: SongContext) -> "MusicProject":
+        """Return the same project asset registry bound to a new SongContext."""
+        return MusicProject(id=self.id, context=context, assets=list(self.assets))
+
     def resolve_asset_path(self, asset_id: str) -> str:
         """Resolve a logical asset ID or fail explicitly."""
         paths = self.asset_map()
