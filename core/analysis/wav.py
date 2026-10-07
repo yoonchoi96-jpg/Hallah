@@ -131,7 +131,7 @@ class WavAnalyzer:
         chroma = np.zeros(12)
         mask = (freqs >= 55) & (freqs <= 1760)
         for hz, magnitude in zip(freqs[mask], spectrum[mask]):
-            chroma[int(round(69 + 12 * math.log2(float(hz) / 440))) % 12] += float(magnitude)
+            chroma[round(69 + 12 * math.log2(float(hz) / 440)) % 12] += float(magnitude)
         if not chroma.any():
             return None, None, 0.0
         chroma /= chroma.sum()
@@ -195,7 +195,7 @@ class WavAnalyzer:
         confidence = min(1.0, max(0.0, (peak / median - 1.0) / 18.0))
         if confidence < .08:
             return None, confidence
-        midi = int(round(69 + 12 * math.log2(peak_hz / 440.0)))
+        midi = round(69 + 12 * math.log2(peak_hz / 440.0))
         if not 24 <= midi <= 108:
             return None, confidence
         return midi, confidence
@@ -239,7 +239,7 @@ class WavAnalyzer:
         if bpm is None or len(x) < sr * 0.5:
             return (), 0.0
         beat_seconds = 60.0 / bpm
-        window_samples = max(1024, int(round(2.0 * beat_seconds * sr)))
+        window_samples = max(1024, round(2.0 * beat_seconds * sr))
         if len(x) < window_samples:
             return (), 0.0
         names = ("C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B")
@@ -253,7 +253,7 @@ class WavAnalyzer:
             chroma = np.zeros(12)
             mask = (freqs >= 55) & (freqs <= 1760)
             for hz, magnitude in zip(freqs[mask], spectrum[mask]):
-                chroma[int(round(69 + 12 * math.log2(float(hz) / 440))) % 12] += float(magnitude)
+                chroma[round(69 + 12 * math.log2(float(hz) / 440)) % 12] += float(magnitude)
             total = float(chroma.sum())
             if total <= 1e-9:
                 continue
