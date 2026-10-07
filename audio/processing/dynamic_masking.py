@@ -441,7 +441,7 @@ def _estimate_reference_lag_samples(source_data: np.ndarray, reference_data: np.
         if score > best_score:
             best_score = score
             best_lag = lag
-    return int(round(best_lag / 25.0) * 25)
+    return int(np.floor(best_lag / 50.0 + 0.5) * 50)
 
 def _align_reference_to_source(source_data: np.ndarray, reference_data: np.ndarray, sr: int, source_meta: dict[str, object], reference_meta: dict[str, object]) -> tuple[np.ndarray, dict[str, object], dict[str, object]]:
     """Align reference audio and event timing to the source musical timeline."""
@@ -643,7 +643,14 @@ def apply_spectral_curve_dynamic_masking(
                     if distance < best_distance:
                         best = idx
                         best_distance = distance
-                if best is None:
+                if best is None and previous_centers:
+                    previous = min(previous_centers, key=lambda value: abs(float(peak) - float(value)))
+                    delta = float(peak) - float(previous)
+                    delta = max(-max_center_jump_hz, min(max_center_jump_hz, delta))
+                    smoothed_peak = float(previous) + center_smoothing * delta
+                    previous_strength = min(previous_strengths, key=lambda value: abs(float(raw_strength) - float(value)))
+                    smoothed_strength = float(previous_strength) + strength_attack * (float(raw_strength) - float(previous_strength))
+                elif best is None:
                     smoothed_peak = float(peak)
                     smoothed_strength = float(raw_strength)
                 else:
@@ -677,7 +684,14 @@ def apply_spectral_curve_dynamic_masking(
                     if distance < best_distance:
                         best = idx
                         best_distance = distance
-                if best is None:
+                if best is None and previous_side_centers:
+                    previous = min(previous_side_centers, key=lambda value: abs(float(peak) - float(value)))
+                    delta = float(peak) - float(previous)
+                    delta = max(-max_center_jump_hz, min(max_center_jump_hz, delta))
+                    smooth_peak = float(previous) + center_smoothing * delta
+                    previous_strength = min(previous_side_strengths, key=lambda value: abs(float(raw_strength) - float(value)))
+                    smooth_strength = float(previous_strength) + strength_attack * (float(raw_strength) - float(previous_strength))
+                elif best is None:
                     smooth_peak = float(peak)
                     smooth_strength = float(raw_strength)
                 else:
@@ -711,7 +725,7 @@ def apply_spectral_curve_dynamic_masking(
                     normalized_strength = min(
                         1.0, max(0.0, (float(strength) - strength_floor) / (1.0 - strength_floor))
                     )
-                    depth = (1.0 - minimum) * (normalized_strength ** 0.5) * 1.35
+                    depth = (1.0 - minimum) * (normalized_strength ** 0.5) * 2.5
                     local_curve_mid = np.minimum(local_curve_mid, 1.0 - peak_curve * depth)
                 for peak, strength in zip(next_side_centers, next_side_strengths):
                     peak_sigma = max(35.0, float(peak) * 0.28)
