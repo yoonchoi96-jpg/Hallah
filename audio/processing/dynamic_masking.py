@@ -250,6 +250,8 @@ def _spectral_component_collision(
         reference_cb = _critical_band_smoothing(reference_spec, freqs)
         src_peak = max(float(np.max(source_cb)), 1e-9)
         ref_peak = max(float(np.max(reference_cb)), 1e-9)
+        if ref_peak / src_peak < 0.08:
+            return ()
         src = source_cb / src_peak
         ref = reference_cb / ref_peak
 
