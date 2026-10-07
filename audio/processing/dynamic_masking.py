@@ -133,7 +133,8 @@ def apply_frequency_dynamic_masking(
             selected_ranges[band] = (lo, hi)
     minimum = max(0.0, 1.0 - min(0.35, float(amount)))
     for start in range(0, len(data), hop):
-        stop = min(start + frame, len(data))
+        valid_len = min(frame, len(data) - start)
+        stop = start + valid_len
         padded_stop = start + frame
         chunk = padded[start:padded_stop]
         if len(chunk) < frame:
@@ -704,18 +705,16 @@ def apply_spectral_curve_dynamic_masking(
         if chunk.shape[1] == 1:
             spectrum = np.fft.rfft(chunk[:, 0] * window)
             rendered = np.fft.irfft(spectrum * gain_mid, n=frame).astype(np.float32)
-            valid_len = stop - start
-            out[start:stop, 0] += rendered[:valid_len] * window[:valid_len]
+            out[start : start + valid_len, 0] += (rendered * window)[:valid_len]
         else:
             mid, side = _stereo_components(chunk)
             mid_rendered = np.fft.irfft(np.fft.rfft(mid * window) * gain_mid, n=frame).astype(np.float32)
             side_rendered = np.fft.irfft(np.fft.rfft(side * window) * gain_side, n=frame).astype(np.float32)
             left = (mid_rendered + side_rendered) * window
             right = (mid_rendered - side_rendered) * window
-            valid_len = stop - start
-            out[start:stop, 0] += left[:valid_len]
-            out[start:stop, 1] += right[:valid_len]
-        norm[start:stop] += window[: stop - start] * window[: stop - start]
+            out[start : start + valid_len, 0] += left[:valid_len]
+            out[start : start + valid_len, 1] += right[:valid_len]
+        norm[start : start + valid_len] += window[:valid_len] * window[:valid_len]
     valid = norm > 1e-8
     out[valid] /= norm[valid, None]
     out[~valid] = 0.0
