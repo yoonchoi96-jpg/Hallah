@@ -14,4 +14,4 @@ class DefaultExecutiveProducer:
             affected_dimensions=(),
         )
         candidates = build_candidates(request.context, request.utterance)
-        return ProductionPlan(intent=intent, candidates=candidates)
+        return ProductionPlan(intent=intent, candidates=tuple(candidates))
