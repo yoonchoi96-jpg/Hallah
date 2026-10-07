@@ -74,16 +74,6 @@ def validate_candidate(context: SongContext, candidate: Candidate) -> CandidateV
             if target in fixed_targets:
                 conflicts.append(f"Candidate attempts to modify fixed target: {target}.")
 
-    authority_changes = candidate.parameter_changes.get("authority_changes", {})
-    if isinstance(authority_changes, dict):
-        for dimension, source_id in authority_changes.items():
-            authorities = [a for a in context.authorities if a.dimension == dimension]
-            if authorities and all(a.source_id != source_id for a in authorities):
-                conflicts.append(
-                    f"Candidate authority conflict on {dimension}: {source_id} is not the "
-                    "current authoritative source."
-                )
-
     if conflicts:
         warnings.append("Candidate contains musical conflicts and cannot be safely applied.")
 
