@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
+from typing import Literal, cast
 
 from core.analysis.contracts import AudioAnalysis
 from core.music_context.constraints import ContextConstraint, MusicalRelationship
@@ -128,7 +129,12 @@ def analyze_relationships(
                         f"BPM disagreement: {min(left.bpm, right.bpm):.2f}–{max(left.bpm, right.bpm):.2f} BPM."
                     )
 
-            if all((left.key, left.scale, right.key, right.scale)):
+            if (
+                left.key is not None
+                and left.scale is not None
+                and right.key is not None
+                and right.scale is not None
+            ):
                 tonal = classify_tonality(left.key, left.scale, right.key, right.scale)
                 if tonal.kind == "conflict":
                     relationships.append(MusicalRelationship(
@@ -175,7 +181,7 @@ def analyze_relationships(
             if constraint_type:
                 constraints.append(ContextConstraint(
                     target_id=target.asset_id,
-                    type=constraint_type,
+                    type=cast(Literal["fixed", "follow", "adapt", "avoid"], constraint_type),
                     reference_id=authority.source_id,
                     dimension=dimension,
                     reason=f"Follow the {dimension} authority while preserving the target's identity.",
