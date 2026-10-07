@@ -577,7 +577,7 @@ def apply_spectral_curve_dynamic_masking(
             chunk = np.pad(chunk, ((0, frame - len(chunk)), (0, 0)))
         event_gain = float(envelope[min(len(data) - 1, start + frame // 2)])
         local_curve = curve
-        gain_mid = 1.0 + (local_curve - 1.0) * (1.0 - event_gain)
+        gain_mid = 1.0 + (local_curve - 1.0) * min(1.0, (1.0 - event_gain) * 3.0)
         gain_side = gain_mid
         if reference_padded is not None and mask.any():
             ref_chunk = reference_padded[start : start + frame]
@@ -754,8 +754,8 @@ def apply_spectral_curve_dynamic_masking(
                     local_curve_side = np.minimum(local_curve_side, 1.0 - peak_curve * depth)
                 local_curve_mid[~mask] = 1.0
                 local_curve_side[~mask] = 1.0
-                gain_mid = 1.0 + (local_curve_mid - 1.0) * (1.0 - event_gain)
-                gain_side = 1.0 + (local_curve_side - 1.0) * (1.0 - event_gain)
+                gain_mid = 1.0 + (local_curve_mid - 1.0) * min(1.0, (1.0 - event_gain) * 3.0)
+                gain_side = 1.0 + (local_curve_side - 1.0) * min(1.0, (1.0 - event_gain) * 3.0)
         else:
             gain_mid = 1.0 + (local_curve - 1.0) * (1.0 - event_gain)
             gain_side = gain_mid
