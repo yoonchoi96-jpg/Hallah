@@ -539,7 +539,7 @@ def apply_spectral_curve_dynamic_masking(
                 chunk, ref_chunk, sr, lo_hz, hi_hz
             )
             local_centers = mid_centers
-            _freqs_local = np.fft.rfftfreq(frame, 1.0 / sr)
+            __freqs_local = np.fft.rfftfreq(frame, 1.0 / sr)
 
             def component_strengths(
                 source_component: np.ndarray,
@@ -551,14 +551,14 @@ def apply_spectral_curve_dynamic_masking(
                 rms_a = max(float(np.sqrt(np.mean(np.square(source_component)))), 1e-9)
                 rms_b = max(float(np.sqrt(np.mean(np.square(reference_component)))), 1e-9)
                 balance = min(1.0, rms_a / rms_b, rms_b / rms_a)
-                source_cb = _critical_band_smoothing(ss_component, _freqs_local)
-                reference_cb = _critical_band_smoothing(rr_component, _freqs_local)
+                source_cb = _critical_band_smoothing(ss_component, __freqs_local)
+                reference_cb = _critical_band_smoothing(rr_component, __freqs_local)
                 source_max = max(float(np.max(source_cb)), 1e-9)
                 reference_max = max(float(np.max(reference_cb)), 1e-9)
-                bark = _hz_to_bark(_freqs_local)
+                bark = _hz_to_bark(__freqs_local)
                 strengths = []
                 for peak in peaks:
-                    index = int(np.argmin(np.abs(_freqs_local - peak)))
+                    index = int(np.argmin(np.abs(__freqs_local - peak)))
                     source_level = float(source_cb[index] / source_max)
                     reference_level = float(reference_cb[index] / reference_max)
                     neighborhood = np.abs(bark - bark[index]) <= 1.10
