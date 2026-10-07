@@ -174,6 +174,29 @@ def apply_dynamic_masking(
 
 
 
+def _hz_to_bark(hz: np.ndarray) -> np.ndarray:
+    """Map frequency to the psychoacoustic Bark scale."""
+    hz = np.maximum(np.asarray(hz, dtype=np.float32), 0.0)
+    return 13.0 * np.arctan(0.00076 * hz) + 3.5 * np.arctan((hz / 7500.0) ** 2)
+
+
+def _critical_band_smoothing(
+    spectrum: np.ndarray,
+    freqs: np.ndarray,
+    bark_sigma: float = 0.55,
+) -> np.ndarray:
+    """Smooth spectral energy over a compact Bark-scale critical-band neighborhood."""
+    power = np.square(np.asarray(spectrum, dtype=np.float32))
+    bark = _hz_to_bark(freqs)
+    result = np.zeros_like(power)
+    # A direct Bark-domain kernel is cheap at the small FFT sizes used here.
+    for index, center in enumerate(bark):
+        distance = (bark - center) / max(0.1, bark_sigma)
+        weights = np.exp(-0.5 * distance * distance)
+        result[index] = float(np.sum(power * weights) / max(float(np.sum(weights)), 1e-9))
+    return result
+
+
 def _spectral_collision_peaks(
     source_data: np.ndarray,
     reference_data: np.ndarray,
@@ -182,25 +205,33 @@ def _spectral_collision_peaks(
     high_hz: float,
     max_peaks: int = 4,
 ) -> tuple[float, ...]:
-    """Return frequencies that are strong in both source and reference spectra."""
+    """Return collision peaks using Bark/critical-band overlap rather than raw-bin coincidence."""
     if len(source_data) == 0 or len(reference_data) == 0:
         return ()
-    frame = min(4096, max(512, 2 ** int(np.log2(max(512, min(len(source_data), len(reference_data), 4096))))))
+    frame = min(
+        4096,
+        max(512, 2 ** int(np.log2(max(512, min(len(source_data), len(reference_data), 4096))))),
+    )
+
     def spectrum(data: np.ndarray) -> np.ndarray:
         mono = np.mean(data.astype(np.float32, copy=False), axis=1)
         if len(mono) < frame:
             mono = np.pad(mono, (0, frame - len(mono)))
         return np.abs(np.fft.rfft(mono[:frame] * np.hanning(frame)))
+
     source_spec = spectrum(source_data)
     reference_spec = spectrum(reference_data)
     freqs = np.fft.rfftfreq(frame, 1.0 / sr)
     mask = (freqs >= max(20.0, low_hz)) & (freqs <= min(sr * 0.5, high_hz))
     if not np.any(mask):
         return ()
-    # Normalize each spectrum so collision means relative prominence in both signals.
-    src = source_spec / max(float(np.max(source_spec)), 1e-9)
-    ref = reference_spec / max(float(np.max(reference_spec)), 1e-9)
+
+    source_cb = _critical_band_smoothing(source_spec, freqs)
+    reference_cb = _critical_band_smoothing(reference_spec, freqs)
+    src = source_cb / max(float(np.max(source_cb)), 1e-9)
+    ref = reference_cb / max(float(np.max(reference_cb)), 1e-9)
     collision = np.sqrt(src * ref)
+
     indices = np.flatnonzero(mask)
     values = collision[indices].copy()
     peaks = []
@@ -210,7 +241,13 @@ def _spectral_collision_peaks(
         if values[i] < 0.12:
             break
         idx = int(indices[i])
-        peaks.append(float(freqs[idx]))
+        # Report the strongest raw spectral component inside the winning
+        # critical band so the ducking center stays musically meaningful.
+        center_bark = _hz_to_bark(np.asarray([freqs[idx]], dtype=np.float32))[0]
+        bark_distance = np.abs(_hz_to_bark(freqs) - center_bark)
+        local = np.where(mask & (bark_distance <= 0.55), source_spec, 0.0)
+        peak_idx = int(np.argmax(local))
+        peaks.append(float(freqs[peak_idx] if local[peak_idx] > 0 else freqs[idx]))
         left, right = max(0, i - spacing), min(len(values), i + spacing + 1)
         values[left:right] = 0.0
     return tuple(peaks)
