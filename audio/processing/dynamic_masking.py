@@ -298,7 +298,24 @@ def _spectral_collision_peaks(
     mid, _ = _spectral_component_collision(
         source_data, reference_data, sr, low_hz, high_hz
     )
-    return mid[:max_peaks]
+    if mid:
+        return mid[:max_peaks]
+    # Fallback for a clearly tonal reference that is weaker than the source:
+    # critical-band normalization can otherwise erase a valid collision.
+    source_rms = float(np.sqrt(np.mean(np.square(source_data)))) if source_data.size else 0.0
+    reference_rms = float(np.sqrt(np.mean(np.square(reference_data)))) if reference_data.size else 0.0
+    if source_rms > 1e-9 and reference_rms / source_rms >= 0.10:
+        mono = np.mean(source_data.astype(np.float32, copy=False), axis=1)
+        frame = min(4096, max(512, 2 ** int(np.log2(max(512, min(len(mono), 4096))))))
+        if len(mono) < frame:
+            mono = np.pad(mono, (0, frame - len(mono)))
+        spectrum = np.abs(np.fft.rfft(mono[:frame] * np.hanning(frame)))
+        freqs = np.fft.rfftfreq(frame, 1.0 / sr)
+        mask = (freqs >= low_hz) & (freqs <= high_hz)
+        if np.any(mask):
+            indices = np.flatnonzero(mask)
+            return (float(freqs[indices[int(np.argmax(spectrum[indices]))]]),)
+    return ()
 
 
 def _spectral_collision_centers(
@@ -591,6 +608,8 @@ def apply_spectral_curve_dynamic_masking(
                 balance = min(1.0, rms_a / rms_b, rms_b / rms_a)
                 source_cb = _critical_band_smoothing(ss_component, freqs_local)
                 reference_cb = _critical_band_smoothing(rr_component, freqs_local)
+                if rms_b < rms_a * 0.05:
+                    return []
                 source_max = max(float(np.max(source_cb)), 1e-9)
                 reference_max = max(float(np.max(reference_cb)), 1e-9)
                 bark = _hz_to_bark(freqs_local)
@@ -725,7 +744,7 @@ def apply_spectral_curve_dynamic_masking(
                     normalized_strength = min(
                         1.0, max(0.0, (float(strength) - strength_floor) / (1.0 - strength_floor))
                     )
-                    depth = (1.0 - minimum) * (normalized_strength ** 0.5) * 2.5
+                    depth = (1.0 - minimum) * (normalized_strength ** 0.5) * 4.0
                     local_curve_mid = np.minimum(local_curve_mid, 1.0 - peak_curve * depth)
                 for peak, strength in zip(next_side_centers, next_side_strengths):
                     peak_sigma = max(35.0, float(peak) * 0.28)
