@@ -428,9 +428,16 @@ class SourceAudioGenerator:
             ranges = decision.get("ranges", {})
             bands = tuple(str(b) for b in decision.get("bands", ()))
             from audio.processing.dynamic_masking import apply_spectral_curve_dynamic_masking
+            ref_path = Path(ref_id)
+            reference_audio = None
+            if ref_path.exists():
+                ref_audio, ref_sr = self._read(ref_path)
+                if ref_sr == sr:
+                    reference_audio = ref_audio
             data, dynamic_masking = apply_spectral_curve_dynamic_masking(
                 data, sr, meta, ref_meta, amount, bands=bands,
                 ranges=ranges if isinstance(ranges, dict) else None,
+                reference_data=reference_audio,
             )
             if dynamic_masking.get("applied"):
                 dynamic_masking["allocated_amount"] = amount
