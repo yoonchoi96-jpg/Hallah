@@ -166,7 +166,7 @@ class WavAnalyzer:
         if not len(candidates):
             return ()
         min_gap = max(1, sr * .08 / hop)
-        selected = []
+        selected: list[int] = []
         for idx in candidates:
             if not selected or idx - selected[-1] >= min_gap:
                 selected.append(idx)
