@@ -9,7 +9,6 @@ def _rms(data):
 
 def _render(source, reference):
     sr = 8000
-    n = len(source)
     out, meta = apply_spectral_curve_dynamic_masking(
         source.astype(np.float32),
         sr,
