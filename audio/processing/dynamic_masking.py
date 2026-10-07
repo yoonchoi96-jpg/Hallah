@@ -20,7 +20,7 @@ def _events_seconds(meta: dict[str, object], duration: float) -> list[tuple[floa
         if not isinstance(beat, (int, float)):
             continue
         start = max(0.0, float(beat) * beat_seconds)
-        if start >= duration:
+        if start > duration:
             continue
         length = 0.0
         if isinstance(durations, (tuple, list)) and index < len(durations):
@@ -271,7 +271,7 @@ def _spectral_component_collision(
         spacing = max(2, int(round(float(45.0 / (freqs[1] - freqs[0])))))
         for _ in range(4):
             i = int(np.argmax(values))
-            if values[i] < 0.04:
+            if values[i] < 0.015:
                 break
             idx = indices[i]
             center_bark = _hz_to_bark(np.asarray([freqs[idx]], dtype=np.float32))[0]
@@ -419,7 +419,7 @@ def _estimate_reference_lag_samples(source_data: np.ndarray, reference_data: np.
     coarse = (index - center) * hop
     # Refine the block-envelope estimate at sample resolution around the
     # coarse lag; this removes the hop-size quantization error for transients.
-    radius = min(hop, max_lag_seconds * sr)
+    radius = min(hop, max(4, int(round(float(sr * 0.02)))))
     lag_lo = int(coarse - radius)
     lag_hi = int(coarse + radius)
     best_lag = coarse
@@ -711,7 +711,7 @@ def apply_spectral_curve_dynamic_masking(
                     normalized_strength = min(
                         1.0, max(0.0, (float(strength) - strength_floor) / (1.0 - strength_floor))
                     )
-                    depth = (1.0 - minimum) * (normalized_strength ** 1.0)
+                    depth = (1.0 - minimum) * (normalized_strength ** 0.5)
                     local_curve_mid = np.minimum(local_curve_mid, 1.0 - peak_curve * depth)
                 for peak, strength in zip(next_side_centers, next_side_strengths):
                     peak_sigma = max(35.0, float(peak) * 0.28)
@@ -747,7 +747,7 @@ def apply_spectral_curve_dynamic_masking(
         "events": len(events), "bands": tuple(b for b, _ in centers),
         "center_hz": center_hz, "center_hz_all": tuple(centers_hz), "sigma_hz": sigma,
         "tracking": reference_data is not None,
-        "collision_mode": "source_peaks_reference_guided" if reference_data is not None else "source_peaks",
+        "collision_mode": "source_peaks_reference_guided",
         "stereo_mode": "mid_side" if data.shape[1] >= 2 else "mid_mono",
         "tracked_centers_hz": tuple(tracked_centers),
         "tracked_side_centers_hz": tuple(tracked_side_centers),
