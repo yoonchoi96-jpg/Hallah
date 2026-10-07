@@ -4,14 +4,14 @@ from __future__ import annotations
 from core.analysis.contracts import AudioAnalysis
 from core.analysis.engine import Analyzer, analyze_project_assets
 from core.music_context.authority import infer_authority
-from core.music_context.models import SongContext
+from core.music_context.models import MusicalAuthority, SongContext
 from core.music_context.relationships import analyze_relationships, merge_conflicts
 from core.music_context.resolve import resolve_authorities
 from core.project.models import MusicProject
 
 
 def _best_for_dimension(
-    analyses: list[AudioAnalysis], authorities, dimension: str
+    analyses: list[AudioAnalysis], authorities: list[MusicalAuthority], dimension: str
 ) -> AudioAnalysis | None:
     winner = next((r.winner for r in resolve_authorities(authorities) if r.dimension == dimension), None)
     return next((a for a in analyses if winner and a.asset_id == winner.source_id), None)
