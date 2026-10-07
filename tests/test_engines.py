@@ -1,5 +1,5 @@
-from agent.executive_producer.default import DefaultExecutiveProducer
 from agent.executive_producer.contracts import ProductionRequest
+from agent.executive_producer.default import DefaultExecutiveProducer
 from core.analysis.contracts import AudioAnalysis
 from core.analysis.engine import analyze_assets, analyze_project_assets
 from core.candidates.engine import build_candidates
