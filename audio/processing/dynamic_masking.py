@@ -545,7 +545,7 @@ def apply_spectral_curve_dynamic_masking(
                 source_component: np.ndarray,
                 reference_component: np.ndarray,
                 peaks: tuple[float, ...],
-                freqs_local: np.ndarray = __freqs_local,
+                freqs_local: np.ndarray,
             ) -> list[float]:
                 ss_component = np.abs(np.fft.rfft(source_component * window))
                 rr_component = np.abs(np.fft.rfft(reference_component * window))
@@ -587,8 +587,8 @@ def apply_spectral_curve_dynamic_masking(
 
             source_mid, source_side = _stereo_components(chunk)
             reference_mid, reference_side = _stereo_components(ref_chunk)
-            mid_strengths = component_strengths(source_mid, reference_mid, mid_centers)
-            side_strengths = component_strengths(source_side, reference_side, side_centers)
+            mid_strengths = component_strengths(source_mid, reference_mid, mid_centers, __freqs_local)
+            side_strengths = component_strengths(source_side, reference_side, side_centers, __freqs_local)
 
             # Track peaks across adjacent frames. Limit movement first, then
             # smooth frequency so a changing collision does not jump abruptly.
