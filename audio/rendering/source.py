@@ -16,6 +16,16 @@ class SourceAudioGenerator:
     def _authority_dimension(meta: dict[str, object]) -> str:
         return str(meta.get("dimension", ""))
 
+    @staticmethod
+    def _resolve_asset_path(asset_id: str, changes: dict[str, object]) -> Path:
+        """Resolve a logical asset ID to its filesystem path when provided."""
+        paths = changes.get("asset_paths")
+        if isinstance(paths, dict):
+            value = paths.get(asset_id)
+            if isinstance(value, str) and value:
+                return Path(value)
+        return Path(asset_id)
+
     @classmethod
     def _pitch_allowed(cls, sid: str, meta: dict[str, object], changes: dict[str, object]) -> bool:
         overrides=changes.get("source_adaptations")
@@ -375,7 +385,7 @@ class SourceAudioGenerator:
         if request.kind!="audio": raise ValueError("SourceAudioGenerator only renders audio.")
         if not request.source_asset_ids: raise ValueError("source_asset_ids required")
         sid=request.source_asset_ids[0]
-        path=Path(sid)
+        path=self._resolve_asset_path(sid,request.parameter_changes)
         if not path.exists(): raise FileNotFoundError(path)
         data,sr=self._read(path)
         auth=request.parameter_changes.get("authority_analysis",{})
@@ -428,7 +438,7 @@ class SourceAudioGenerator:
             ranges = decision.get("ranges", {})
             bands = tuple(str(b) for b in decision.get("bands", ()))
             from audio.processing.dynamic_masking import apply_spectral_curve_dynamic_masking
-            ref_path = Path(ref_id)
+            ref_path = self._resolve_asset_path(ref_id, request.parameter_changes)
             reference_audio = None
             if ref_path.exists():
                 ref_audio, ref_sr = self._read(ref_path)
