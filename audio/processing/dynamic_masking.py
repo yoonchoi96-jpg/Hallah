@@ -240,9 +240,15 @@ def _spectral_component_collision(
         reference_spec = spectrum(reference_component)
         source_cb = _critical_band_smoothing(source_spec, freqs)
         reference_cb = _critical_band_smoothing(reference_spec, freqs)
-        src = source_cb / max(float(np.max(source_cb)), 1e-9)
-        ref = reference_cb / max(float(np.max(reference_cb)), 1e-9)
-        collision = np.sqrt(src * ref)
+        src_peak = max(float(np.max(source_cb)), 1e-9)
+        ref_peak = max(float(np.max(reference_cb)), 1e-9)
+        src = source_cb / src_peak
+        ref = reference_cb / ref_peak
+        # Psychoacoustic floor: weak spectral tails should not trigger strong
+        # masking merely because they occupy the same Bark band.
+        source_threshold = np.maximum(0.0, (src - 0.10) / 0.90)
+        reference_threshold = np.maximum(0.0, (ref - 0.10) / 0.90)
+        collision = np.sqrt(source_threshold * reference_threshold)
         indices = np.flatnonzero(mask)
         values = collision[indices].copy()
         peaks = []
