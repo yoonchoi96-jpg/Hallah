@@ -474,8 +474,8 @@ def apply_spectral_curve_dynamic_masking(
     aligned_reference_meta = dict(reference_meta)
     duration = len(data) / float(sr)
     events = _events_seconds(aligned_reference_meta, duration)
-    if not events:
-        return data.astype(np.float32, copy=True), {"applied": False, "events": 0, "curve": ()}
+    if not events and reference_data is not None and len(reference_data):
+        events = [(0.0, duration)]
     if ranges is None:
         ranges = {"low": (20.0, 180.0), "mid": (180.0, 2500.0), "high": (2500.0, sr * 0.5)}
     frame = min(2048, max(512, 2 ** int(np.log2(max(512, min(len(data), 2048))))))
