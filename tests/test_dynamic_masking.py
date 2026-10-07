@@ -140,3 +140,16 @@ def test_spectral_curve_detects_multiple_collision_peaks():
     centers = tuple(float(x) for x in meta["center_hz_all"])
     assert any(abs(x - 900.0) < 60.0 for x in centers)
     assert any(abs(x - 1400.0) < 60.0 for x in centers)
+
+
+def test_spectral_collision_threshold_is_reference_guided():
+    from audio.processing.dynamic_masking import apply_spectral_curve_dynamic_masking
+    sr = 8000
+    time = np.arange(8000, dtype=np.float32) / sr
+    data = np.column_stack([np.sin(2 * np.pi * 900 * time)]).astype(np.float32)
+    source = {"role": "guitar", "bpm": 60.0}
+    reference = {"role": "vocal", "bpm": 60.0, "onset_beats": (0.25,), "spectral_centroid_hz": 900.0, "_source_id": "vocal"}
+    _, meta = apply_spectral_curve_dynamic_masking(
+        data, sr, source, reference, 0.25, bands=("mid",), ranges={"mid": (500.0, 1500.0)}
+    )
+    assert meta["collision_mode"] == "source_peaks_reference_guided"
