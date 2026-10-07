@@ -344,6 +344,77 @@ def _spectral_collision_center(
     return float(freqs[indices[int(np.argmax(spectrum[indices]))]])
 
 
+def _resample_reference_to_bpm(reference_data: np.ndarray, reference_bpm: float, source_bpm: float) -> tuple[np.ndarray, float]:
+    """Map reference musical time onto the source BPM timeline."""
+    if reference_data.size == 0 or reference_bpm <= 0 or source_bpm <= 0:
+        return reference_data.astype(np.float32, copy=True), 1.0
+    ratio = float(source_bpm) / float(reference_bpm)
+    if abs(ratio - 1.0) < 1e-6:
+        return reference_data.astype(np.float32, copy=True), 1.0
+    target_length = max(1, int(round(len(reference_data) * ratio)))
+    old_x = np.linspace(0.0, 1.0, len(reference_data), endpoint=False)
+    new_x = np.linspace(0.0, 1.0, target_length, endpoint=False)
+    source = reference_data.astype(np.float32, copy=False)
+    if source.ndim == 1:
+        return np.interp(new_x, old_x, source).astype(np.float32), ratio
+    channels = [np.interp(new_x, old_x, source[:, channel]) for channel in range(source.shape[1])]
+    return np.column_stack(channels).astype(np.float32), ratio
+
+def _shift_reference_samples(reference_data: np.ndarray, shift_samples: int) -> np.ndarray:
+    """Shift reference audio on the source timeline, padding vacated samples with zero."""
+    array = reference_data.astype(np.float32, copy=False)
+    if not shift_samples or len(array) == 0:
+        return array.copy()
+    out = np.zeros_like(array)
+    if shift_samples > 0:
+        if shift_samples < len(array):
+            out[shift_samples:] = array[:-shift_samples]
+    else:
+        advance = min(len(array), -shift_samples)
+        if advance < len(array):
+            out[:-advance] = array[advance:]
+    return out
+
+def _estimate_reference_lag_samples(source_data: np.ndarray, reference_data: np.ndarray, sr: int, max_lag_seconds: float = 2.0) -> int:
+    """Estimate a bounded envelope lag without external DSP dependencies."""
+    if len(source_data) < 32 or len(reference_data) < 32 or sr <= 0:
+        return 0
+    source = np.mean(source_data.astype(np.float32, copy=False), axis=1)
+    reference = np.mean(reference_data.astype(np.float32, copy=False), axis=1)
+    hop = max(16, int(round(sr / 100.0)))
+    usable = min(len(source), len(reference), sr * 12)
+    source, reference = source[:usable], reference[:usable]
+    count = min(len(source), len(reference)) // hop
+    if count < 8:
+        return 0
+    source_env = np.mean(np.abs(source[:count * hop]).reshape(count, hop), axis=1)
+    reference_env = np.mean(np.abs(reference[:count * hop]).reshape(count, hop), axis=1)
+    source_env -= float(np.mean(source_env))
+    reference_env -= float(np.mean(reference_env))
+    if float(np.linalg.norm(source_env)) < 1e-7 or float(np.linalg.norm(reference_env)) < 1e-7:
+        return 0
+    max_lag = min(int(round(max_lag_seconds * sr / hop)), count - 2)
+    corr = np.correlate(source_env, reference_env, mode="full")
+    center = count - 1
+    lo, hi = max(0, center - max_lag), min(len(corr), center + max_lag + 1)
+    index = lo + int(np.argmax(corr[lo:hi]))
+    return int((index - center) * hop)
+
+def _align_reference_to_source(source_data: np.ndarray, reference_data: np.ndarray, sr: int, source_meta: dict[str, object], reference_meta: dict[str, object]) -> tuple[np.ndarray, dict[str, object], dict[str, object]]:
+    """Align reference audio and event timing to the source musical timeline."""
+    aligned = reference_data.astype(np.float32, copy=True)
+    source_bpm = source_meta.get("bpm")
+    reference_bpm = reference_meta.get("bpm")
+    bpm_ratio = 1.0
+    if isinstance(source_bpm, (int, float)) and isinstance(reference_bpm, (int, float)) and float(source_bpm) > 0 and float(reference_bpm) > 0:
+        aligned, bpm_ratio = _resample_reference_to_bpm(aligned, float(reference_bpm), float(source_bpm))
+    lag_samples = _estimate_reference_lag_samples(source_data, aligned, sr)
+    aligned = _shift_reference_samples(aligned, lag_samples)
+    aligned_meta = dict(reference_meta)
+    if isinstance(source_bpm, (int, float)) and float(source_bpm) > 0:
+        aligned_meta["bpm"] = float(source_bpm)
+    return aligned, aligned_meta, {"applied": bool(abs(bpm_ratio - 1.0) > 1e-6 or lag_samples != 0), "bpm_ratio": float(bpm_ratio), "lag_samples": int(lag_samples), "lag_seconds": float(lag_samples) / float(sr) if sr > 0 else 0.0}
+
 def apply_spectral_curve_dynamic_masking(
     data: np.ndarray,
     sr: int,
