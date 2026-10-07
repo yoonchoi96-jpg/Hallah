@@ -530,6 +530,7 @@ def apply_spectral_curve_dynamic_masking(
         )
     for start in range(0, len(data), hop):
         valid_len = min(frame, len(data) - start)
+        stop = start + valid_len
         chunk = padded[start : start + frame]
         if len(chunk) < frame:
             chunk = np.pad(chunk, ((0, frame - len(chunk)), (0, 0)))
