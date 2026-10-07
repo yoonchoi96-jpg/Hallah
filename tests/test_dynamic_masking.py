@@ -264,4 +264,4 @@ def test_spectral_collision_strength_attack_release_is_smoothed():
     strengths = tuple(float(x) for x in meta["smoothed_strengths"])
     assert len(strengths) > 3
     assert max(strengths) > min(strengths)
-    assert max(abs(b - a) for a, b in zip(strengths, strengths[1:])) < 0.5
+    assert max(abs(b - a) for a, b in __import__('itertools').pairwise(strengths)) < 0.5
