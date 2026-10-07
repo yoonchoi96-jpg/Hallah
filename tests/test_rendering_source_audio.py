@@ -114,3 +114,57 @@ def test_source_audio_candidate_directions_have_distinct_gain_character(tmp_path
         peaks[direction]=float(np.max(np.abs(data)))
         assert result.metadata["candidate_direction"] == direction
     assert len(set(round(value, 4) for value in peaks.values())) == 4
+
+
+def test_source_audio_resolves_logical_asset_ids(tmp_path):
+    src=tmp_path/"source.wav"
+    _tone(src,seconds=2.0)
+    req=build_render_request("logical-v1",1,"logical asset",{
+        "asset_paths":{"drums-main":str(src)},
+        "authority_analysis":{"drums-main":{"bpm":120.0,"key":"C","dimension":"rhythm"}},
+    },source_asset_ids=("drums-main",))
+    result=SourceAudioGenerator(tmp_path/"cache").render(req)
+    assert result.sample_rate==22050
+    assert result.metadata["source_asset_id"]=="drums-main"
+    assert result.duration_seconds==2.0
+
+
+def test_source_audio_resolves_logical_reference_ids_for_masking(tmp_path):
+    src=tmp_path/"source.wav"
+    ref=tmp_path/"reference.wav"
+    _tone(src,seconds=2.0)
+    _tone(ref,seconds=2.0)
+    req=build_render_request("logical-v2",1,"logical reference",{
+        "asset_paths":{"bass-main":str(src),"guitar-main":str(ref)},
+        "authority_analysis":{
+            "bass-main":{
+                "bpm":120.0,
+                "key":"C",
+                "dimension":"low_end",
+                "low_energy_ratio":0.8,
+                "mid_energy_ratio":0.3,
+                "high_energy_ratio":0.1,
+            },
+            "guitar-main":{
+                "bpm":120.0,
+                "key":"C",
+                "dimension":"harmony",
+                "low_energy_ratio":0.5,
+                "mid_energy_ratio":0.6,
+                "high_energy_ratio":0.2,
+            },
+        },
+        "mix_relationships":{
+            "bass-main":{
+                "decisions":({
+                    "reference_id":"guitar-main",
+                    "bands":("low",),
+                    "ranges":{"low":(100.0,400.0)},
+                    "amount":0.12,
+                },)
+            }
+        },
+    },source_asset_ids=("bass-main",))
+    result=SourceAudioGenerator(tmp_path/"cache").render(req)
+    assert result.metadata["dynamic_masking"]["applied"] is True
+    assert result.metadata["dynamic_masking"]["reference_id"]=="guitar-main"
