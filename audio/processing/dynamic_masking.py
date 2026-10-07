@@ -530,8 +530,9 @@ def apply_spectral_curve_dynamic_masking(
             ((0, max(0, len(data) - len(reference_array))), (0, 0)),
         )
     for start in range(0, len(data), hop):
-        stop = start + frame
-        chunk = padded[start:stop]
+        valid_len = min(frame, len(data) - start)
+        stop = start + valid_len
+        chunk = padded[start : start + frame]
         if len(chunk) < frame:
             chunk = np.pad(chunk, ((0, frame - len(chunk)), (0, 0)))
         event_gain = float(envelope[min(len(data) - 1, start + frame // 2)])
