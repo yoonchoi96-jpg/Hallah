@@ -412,7 +412,13 @@ class SourceAudioGenerator:
         if target_pc is None and isinstance(target_key, str):
             target_pc = self._key_pc(target_key.strip().split()[0])
         semitones=0.0
-        if (pitch_allowed or isinstance(override.get("pitch"), str)) and source_pc is not None and target_pc is not None:
+        explicit_pitch_reference = override.get("pitch")
+        if isinstance(explicit_pitch_reference, str) and isinstance(auth, dict):
+            explicit_meta = auth.get(explicit_pitch_reference)
+            if isinstance(explicit_meta, dict):
+                target_key = explicit_meta.get("key", target_key)
+                target_pc = self._key_pc(target_key)
+        if (pitch_allowed or isinstance(explicit_pitch_reference, str)) and source_pc is not None and target_pc is not None:
             delta=target_pc-source_pc
             semitones=float(((delta+6)%12)-6)
             if abs(semitones)>1e-6:
