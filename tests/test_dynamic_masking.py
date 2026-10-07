@@ -28,7 +28,7 @@ def test_kick_event_ducks_bass_only_near_event():
     sr = 1000
     data = __import__("numpy").ones((2000, 1), dtype="float32")
     bass = {"role": "bass", "dimension": "low_end", "bpm": 60.0}
-    kick = {"role": "kick", "dimension": "rhythm", "bpm": 60.0, "onset_beats": (0.5,)}
+    kick = {"role": "kick", "dimension": "rhythm", "bpm": 60.0, "onset_beats": (0.0625,)}
     rendered, meta = apply_dynamic_masking(data, sr, bass, kick, 0.25)
     assert meta["applied"] is True
     assert meta["events"] == 1
