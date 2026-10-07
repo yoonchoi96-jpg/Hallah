@@ -744,7 +744,7 @@ def apply_spectral_curve_dynamic_masking(
                     normalized_strength = min(
                         1.0, max(0.0, (float(strength) - strength_floor) / (1.0 - strength_floor))
                     )
-                    spectral_minimum = max(0.45, 1.0 - min(0.55, float(amount) * 1.8))
+                    spectral_minimum = max(0.35, 1.0 - min(0.65, float(amount) * 2.0))
                     depth = min(0.55, (1.0 - spectral_minimum) * (normalized_strength ** 0.5) * 1.35)
                     local_curve_mid = np.minimum(local_curve_mid, 1.0 - peak_curve * depth)
                 for peak, strength in zip(next_side_centers, next_side_strengths):
@@ -760,6 +760,10 @@ def apply_spectral_curve_dynamic_masking(
         else:
             gain_mid = 1.0 + (local_curve - 1.0) * (1.0 - event_gain)
             gain_side = gain_mid
+        if reference_data is not None and chunk.shape[1] >= 2:
+            ref_mid_check, ref_side_check = _stereo_components(ref_chunk if reference_padded is not None else chunk)
+            if float(np.sqrt(np.mean(np.square(ref_side_check)))) < 0.5 * max(float(np.sqrt(np.mean(np.square(ref_mid_check)))), 1e-9):
+                gain_side = np.ones_like(gain_mid)
         if chunk.shape[1] == 1:
             spectrum = np.fft.rfft(chunk[:, 0] * window)
             rendered = np.fft.irfft(spectrum * gain_mid, n=frame).astype(np.float32)
