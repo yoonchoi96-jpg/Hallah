@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
+from typing import Literal, cast
 
 from core.music_context.constraints import ContextConstraint
 from core.music_context.models import MusicalAuthority, SongContext
@@ -80,7 +81,7 @@ def apply_patch(context: SongContext, patch: ContextPatch) -> SongContext:
         elif op=="authority":
             if dimension is None:
                 continue
-            auth=MusicalAuthority(target,dimension,1.0,"Explicit user direction.")
+            auth=MusicalAuthority(target,cast(Literal["harmony", "rhythm", "melody", "low_end", "texture", "arrangement"], dimension),1.0,"Explicit user direction.")
             new.authorities=[a for a in new.authorities if not (a.source_id==target and a.dimension==dimension)]
             new.authorities.append(auth)
         elif op=="constraint":
