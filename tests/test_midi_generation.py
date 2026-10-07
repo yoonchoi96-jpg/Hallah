@@ -95,7 +95,7 @@ def test_generic_candidate_inherits_strongest_musical_authority() -> None:
             MusicalAuthority("drum-loop", "rhythm", 0.91),
         ],
     )
-    candidate = build_candidates(context, "make something")
+    candidate = build_candidates(context, "make something")[0]
     request = candidate_to_render_request(candidate, context, kind="midi")
     sequence = generate_sequence(request)
     assert "role:harmony" in request.parameter_changes["constraints"]
