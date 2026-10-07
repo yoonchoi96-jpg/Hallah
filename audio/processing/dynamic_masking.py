@@ -381,13 +381,20 @@ def apply_spectral_curve_dynamic_masking(
                 tracked_strengths.extend(strengths)
                 local_curve = np.ones(len(freqs), dtype=np.float32)
                 multi = np.zeros_like(freqs, dtype=np.float32)
-                for peak in local_centers:
+                for peak, strength in zip(local_centers, strengths):
                     peak_sigma = max(35.0, float(peak) * 0.28)
-                    multi = np.maximum(
-                        multi,
-                        np.exp(-0.5 * ((freqs - peak) / peak_sigma) ** 2).astype(np.float32),
+                    peak_curve = np.exp(
+                        -0.5 * ((freqs - peak) / peak_sigma) ** 2
+                    ).astype(np.float32)
+                    # Stronger source/reference overlap receives deeper ducking;
+                    # weak overlap remains close to transparent.
+                    strength_floor = 0.12
+                    normalized_strength = min(
+                        1.0, max(0.0, (float(strength) - strength_floor) / (1.0 - strength_floor))
                     )
-                local_curve[mask] = 1.0 - (1.0 - minimum) * multi[mask]
+                    depth = (1.0 - minimum) * (normalized_strength ** 1.5)
+                    multi = np.maximum(multi, peak_curve * depth)
+                local_curve[mask] = 1.0 - multi[mask]
         gain = 1.0 + (local_curve - 1.0) * (1.0 - event_gain)
         for channel in range(chunk.shape[1]):
             spectrum = np.fft.rfft(chunk[:, channel] * window)
@@ -404,5 +411,7 @@ def apply_spectral_curve_dynamic_masking(
         "tracking": reference_data is not None,
         "tracked_centers_hz": tuple(tracked_centers),
         "tracked_strengths": tuple(tracked_strengths),
-        "tracked_frame_count": len(tracked_strengths) // max(1, len(centers_hz)),
+        "tracked_frame_count": len(tracked_strengths),
+        "tracking_strength_max": max(tracked_strengths, default=0.0),
+        "tracking_strength_mean": float(np.mean(tracked_strengths)) if tracked_strengths else 0.0,
     }
