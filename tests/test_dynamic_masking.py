@@ -28,7 +28,7 @@ def test_kick_event_ducks_bass_only_near_event():
     sr = 1000
     data = __import__("numpy").ones((2000, 1), dtype="float32")
     bass = {"role": "bass", "dimension": "low_end", "bpm": 60.0}
-    kick = {"role": "kick", "dimension": "rhythm", "bpm": 60.0, "onset_beats": (0.0625,)}
+    kick = {"role": "kick", "dimension": "rhythm", "bpm": 60.0, "onset_beats": (0.5,)}
     rendered, meta = apply_dynamic_masking(data, sr, bass, kick, 0.25)
     assert meta["applied"] is True
     assert meta["events"] == 1
@@ -69,7 +69,7 @@ def test_frequency_dynamic_masking_ducks_only_selected_band():
         0.4 * np.sin(2 * np.pi * 80 * t) + 0.4 * np.sin(2 * np.pi * 1000 * t),
     ]).astype("float32")
     bass = {"role": "bass", "dimension": "low_end", "bpm": 60.0}
-    kick = {"role": "kick", "dimension": "rhythm", "bpm": 60.0, "onset_beats": (0.5,)}
+    kick = {"role": "kick", "dimension": "rhythm", "bpm": 60.0, "onset_beats": (0.0625,)}
     from audio.processing.dynamic_masking import apply_frequency_dynamic_masking
     rendered, meta = apply_frequency_dynamic_masking(
         data, sr, bass, kick, 0.30, bands=("low",), ranges={"low": (50.0, 120.0)}
