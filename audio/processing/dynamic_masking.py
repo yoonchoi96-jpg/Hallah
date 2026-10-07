@@ -197,6 +197,73 @@ def _critical_band_smoothing(
     return result
 
 
+def _stereo_components(data: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    """Return Mid/Side components while keeping mono input on the Mid path."""
+    array = np.asarray(data, dtype=np.float32)
+    if array.ndim != 2 or array.shape[1] == 0:
+        return np.asarray(array, dtype=np.float32).reshape(-1), np.zeros(len(array), dtype=np.float32)
+    if array.shape[1] == 1:
+        return array[:, 0], np.zeros(len(array), dtype=np.float32)
+    left = array[:, 0]
+    right = array[:, 1]
+    return (left + right) * 0.5, (left - right) * 0.5
+
+
+def _spectral_component_collision(
+    source_data: np.ndarray,
+    reference_data: np.ndarray,
+    sr: int,
+    low_hz: float,
+    high_hz: float,
+) -> tuple[tuple[float, ...], tuple[float, ...]]:
+    """Find collision peaks independently for Mid and Side energy."""
+    if len(source_data) == 0 or len(reference_data) == 0:
+        return (), ()
+    frame = min(
+        4096,
+        max(512, 2 ** int(np.log2(max(512, min(len(source_data), len(reference_data), 4096))))),
+    )
+    source_mid, source_side = _stereo_components(source_data)
+    reference_mid, reference_side = _stereo_components(reference_data)
+    freqs = np.fft.rfftfreq(frame, 1.0 / sr)
+    mask = (freqs >= max(20.0, low_hz)) & (freqs <= min(sr * 0.5, high_hz))
+    if not np.any(mask):
+        return (), ()
+
+    def spectrum(component: np.ndarray) -> np.ndarray:
+        if len(component) < frame:
+            component = np.pad(component, (0, frame - len(component)))
+        return np.abs(np.fft.rfft(component[:frame] * np.hanning(frame)))
+
+    def peaks_for(source_component: np.ndarray, reference_component: np.ndarray) -> tuple[float, ...]:
+        source_spec = spectrum(source_component)
+        reference_spec = spectrum(reference_component)
+        source_cb = _critical_band_smoothing(source_spec, freqs)
+        reference_cb = _critical_band_smoothing(reference_spec, freqs)
+        src = source_cb / max(float(np.max(source_cb)), 1e-9)
+        ref = reference_cb / max(float(np.max(reference_cb)), 1e-9)
+        collision = np.sqrt(src * ref)
+        indices = np.flatnonzero(mask)
+        values = collision[indices].copy()
+        peaks = []
+        spacing = max(2, int(round(45.0 / (freqs[1] - freqs[0]))))
+        for _ in range(4):
+            i = int(np.argmax(values))
+            if values[i] < 0.12:
+                break
+            idx = int(indices[i])
+            center_bark = _hz_to_bark(np.asarray([freqs[idx]], dtype=np.float32))[0]
+            bark_distance = np.abs(_hz_to_bark(freqs) - center_bark)
+            local = np.where(mask & (bark_distance <= 0.55), source_spec, 0.0)
+            peak_idx = int(np.argmax(local))
+            peaks.append(float(freqs[peak_idx] if local[peak_idx] > 0 else freqs[idx]))
+            left, right = max(0, i - spacing), min(len(values), i + spacing + 1)
+            values[left:right] = 0.0
+        return tuple(peaks)
+
+    return peaks_for(source_mid, reference_mid), peaks_for(source_side, reference_side)
+
+
 def _spectral_collision_peaks(
     source_data: np.ndarray,
     reference_data: np.ndarray,
@@ -205,52 +272,11 @@ def _spectral_collision_peaks(
     high_hz: float,
     max_peaks: int = 4,
 ) -> tuple[float, ...]:
-    """Return collision peaks using Bark/critical-band overlap rather than raw-bin coincidence."""
-    if len(source_data) == 0 or len(reference_data) == 0:
-        return ()
-    frame = min(
-        4096,
-        max(512, 2 ** int(np.log2(max(512, min(len(source_data), len(reference_data), 4096))))),
+    """Backward-compatible collision peaks using the Mid component."""
+    mid, _ = _spectral_component_collision(
+        source_data, reference_data, sr, low_hz, high_hz
     )
-
-    def spectrum(data: np.ndarray) -> np.ndarray:
-        mono = np.mean(data.astype(np.float32, copy=False), axis=1)
-        if len(mono) < frame:
-            mono = np.pad(mono, (0, frame - len(mono)))
-        return np.abs(np.fft.rfft(mono[:frame] * np.hanning(frame)))
-
-    source_spec = spectrum(source_data)
-    reference_spec = spectrum(reference_data)
-    freqs = np.fft.rfftfreq(frame, 1.0 / sr)
-    mask = (freqs >= max(20.0, low_hz)) & (freqs <= min(sr * 0.5, high_hz))
-    if not np.any(mask):
-        return ()
-
-    source_cb = _critical_band_smoothing(source_spec, freqs)
-    reference_cb = _critical_band_smoothing(reference_spec, freqs)
-    src = source_cb / max(float(np.max(source_cb)), 1e-9)
-    ref = reference_cb / max(float(np.max(reference_cb)), 1e-9)
-    collision = np.sqrt(src * ref)
-
-    indices = np.flatnonzero(mask)
-    values = collision[indices].copy()
-    peaks = []
-    spacing = max(2, int(round(45.0 / (freqs[1] - freqs[0]))))
-    for _ in range(max(1, max_peaks)):
-        i = int(np.argmax(values))
-        if values[i] < 0.12:
-            break
-        idx = int(indices[i])
-        # Report the strongest raw spectral component inside the winning
-        # critical band so the ducking center stays musically meaningful.
-        center_bark = _hz_to_bark(np.asarray([freqs[idx]], dtype=np.float32))[0]
-        bark_distance = np.abs(_hz_to_bark(freqs) - center_bark)
-        local = np.where(mask & (bark_distance <= 0.55), source_spec, 0.0)
-        peak_idx = int(np.argmax(local))
-        peaks.append(float(freqs[peak_idx] if local[peak_idx] > 0 else freqs[idx]))
-        left, right = max(0, i - spacing), min(len(values), i + spacing + 1)
-        values[left:right] = 0.0
-    return tuple(peaks)
+    return mid[:max_peaks]
 
 
 def _spectral_collision_centers(
