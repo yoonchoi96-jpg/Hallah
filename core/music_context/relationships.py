@@ -79,11 +79,11 @@ def classify_tonality(
 
     # Relative major/minor share the same pitch collection.
     scales = {left_scale.lower(), right_scale.lower()}
-    if scales == {"major", "minor"}:
-        if (left_scale.lower() == "major" and distance == 9) or (
-            left_scale.lower() == "minor" and distance == 3
-        ):
-            return TonalRelationship("relative", distance)
+    if scales == {"major", "minor"} and (
+        (left_scale.lower() == "major" and distance == 9)
+        or (left_scale.lower() == "minor" and distance == 3)
+    ):
+        return TonalRelationship("relative", distance)
 
     # Same pitch-class collection is a useful V0 compatibility signal.
     if distance in {5, 7}:
