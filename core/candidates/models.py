@@ -1,8 +1,9 @@
 """Candidate domain models."""
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass, field
-from typing import Literal, Mapping
+from typing import Literal
 
 CandidateDirection = Literal["identity", "natural", "bold", "experimental"]
 CandidateStatus = Literal[
@@ -27,7 +28,7 @@ class Candidate:
     midi_refs: tuple[str, ...] = ()
     parameter_changes: Mapping[str, object] = field(default_factory=dict)
 
-    def with_status(self, status: CandidateStatus) -> "Candidate":
+    def with_status(self, status: CandidateStatus) -> Candidate:
         """Return a new candidate with the requested lifecycle status."""
         return Candidate(
             id=self.id,

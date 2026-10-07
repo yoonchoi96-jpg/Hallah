@@ -1,9 +1,12 @@
 """Resolve musical authority and detect cross-asset conflicts."""
 from __future__ import annotations
+
 from dataclasses import dataclass
+
 from core.analysis.contracts import AudioAnalysis
 from core.music_context.constraints import MusicalRelationship
 from core.music_context.models import MusicalAuthority, SongContext
+
 
 @dataclass(frozen=True)
 class AuthorityResolution:

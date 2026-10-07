@@ -1,8 +1,8 @@
 """Deterministic chord-symbol parsing and voicing helpers for Hallah MIDI."""
 from __future__ import annotations
 
-from dataclasses import dataclass
 import re
+from dataclasses import dataclass
 
 NOTE_TO_PC = {
     "C": 0, "B#": 0, "C#": 1, "DB": 1, "D": 2, "D#": 3, "EB": 3,

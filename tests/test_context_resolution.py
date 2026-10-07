@@ -2,6 +2,7 @@ from core.analysis.contracts import AudioAnalysis
 from core.music_context.models import MusicalAuthority, SongContext
 from core.music_context.resolve import detect_conflicts, resolve_authorities
 
+
 def test_authority_resolution_prefers_confidence():
     items=[MusicalAuthority("a","harmony",.4),MusicalAuthority("b","harmony",.9)]
     result=resolve_authorities(items)[0]

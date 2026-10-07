@@ -1,10 +1,14 @@
 """Deterministic PCM WAV feature extraction for Hallah V0."""
 from __future__ import annotations
+
 import math
 import wave
 from pathlib import Path
+
 import numpy as np
+
 from core.analysis.contracts import AudioAnalysis
+
 
 class WavAnalyzer:
     def analyze(self, asset_id: str) -> AudioAnalysis:

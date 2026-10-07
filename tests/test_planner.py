@@ -1,5 +1,10 @@
-from agent.executive_producer.planner import parse_production_intent, plan_context_patch, apply_patch
+from agent.executive_producer.planner import (
+    apply_patch,
+    parse_production_intent,
+    plan_context_patch,
+)
 from core.music_context.models import SongContext
+
 
 def test_natural_language_production_plan():
     intent=parse_production_intent("드럼은 그대로 유지하고 기타 루프 기준으로 키랑 코드 맞춰. BPM은 드럼 따라가.")

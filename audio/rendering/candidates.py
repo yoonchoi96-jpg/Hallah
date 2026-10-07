@@ -1,8 +1,9 @@
 """Render candidate previews and attach artifacts immutably."""
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import replace
-from typing import Iterable, Literal
+from typing import Literal
 
 from audio.rendering.contracts import CandidateRenderer
 from audio.rendering.pipeline import candidate_to_render_request

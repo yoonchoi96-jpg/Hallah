@@ -1,9 +1,9 @@
-from core.candidates.engine import build_candidates
-from core.music_context.models import SongContext
 from audio.cache.keys import build_cache_key
 from audio.rendering.contracts import build_render_request
 from audio.rendering.mock import MockAudioGenerator
 from audio.rendering.pipeline import candidate_to_render_request
+from core.candidates.engine import build_candidates
+from core.music_context.models import SongContext
 
 
 def test_candidate_becomes_render_request():
@@ -41,6 +41,7 @@ def test_audio_preview_uses_generated_sequence_not_placeholder(tmp_path):
     request = candidate_to_render_request(candidate, context)
     result = MockAudioGenerator(tmp_path).render(request)
     import wave
+
     import numpy as np
     with wave.open(result.artifact_ref, "rb") as wav:
         samples = np.frombuffer(wav.readframes(wav.getnframes()), dtype="<i2")
@@ -51,6 +52,7 @@ def test_audio_preview_uses_generated_sequence_not_placeholder(tmp_path):
 def test_multi_source_audio_preview_mixes_authority_sources(tmp_path):
     import math
     import wave
+
     import numpy as np
     def tone(path, seconds):
         sr=22050
@@ -134,7 +136,9 @@ def test_project_assets_become_render_sources_in_project_order(tmp_path):
 def test_project_registry_reaches_real_source_audio_generator(tmp_path):
     import math
     import wave
+
     import numpy as np
+
     from audio.rendering.source import SourceAudioGenerator
     from core.project.models import AudioAsset, MusicProject
 
@@ -170,8 +174,9 @@ def test_project_registry_reaches_real_source_audio_generator(tmp_path):
     assert result.duration_seconds == 1.0
 
 def test_project_asset_registry_rejects_duplicate_ids(tmp_path):
-    from core.project.models import AudioAsset, MusicProject
     import pytest
+
+    from core.project.models import AudioAsset, MusicProject
     context = SongContext(version=1)
     with pytest.raises(ValueError, match="Duplicate AudioAsset id"):
         MusicProject(
@@ -185,8 +190,9 @@ def test_project_asset_registry_rejects_duplicate_ids(tmp_path):
 
 
 def test_project_asset_registry_rejects_empty_paths():
-    from core.project.models import AudioAsset, MusicProject
     import pytest
+
+    from core.project.models import AudioAsset, MusicProject
     with pytest.raises(ValueError, match="path must not be empty"):
         MusicProject(
             id="invalid-project",

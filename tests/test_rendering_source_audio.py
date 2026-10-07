@@ -1,9 +1,12 @@
 import math
 import wave
-import numpy as np
 from pathlib import Path
+
+import numpy as np
+
 from audio.rendering.contracts import build_render_request
 from audio.rendering.source import SourceAudioGenerator
+
 
 def _tone(path, seconds=4.0, sr=22050):
     t=np.arange(int(sr*seconds))/sr

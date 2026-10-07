@@ -1,5 +1,6 @@
 """First-class musical constraints and relationships."""
 from __future__ import annotations
+
 from dataclasses import dataclass
 from typing import Literal
 

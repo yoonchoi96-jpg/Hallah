@@ -1,12 +1,16 @@
 """Source audio renderer with authority-aware adaptation."""
 from __future__ import annotations
+
 import math
 import wave
 from pathlib import Path
+
 import numpy as np
+
 from audio.cache.keys import build_cache_key
 from audio.processing.masking import build_mix_gain_plan
 from audio.rendering.contracts import RenderRequest, RenderResult
+
 
 class SourceAudioGenerator:
     def __init__(self, cache_dir: str | Path = ".hallah-cache") -> None:

@@ -43,7 +43,7 @@ class SongContext:
     candidates: list[Candidate] = field(default_factory=list)
     candidate_history: list[str] = field(default_factory=list)
 
-    def next_version(self) -> "SongContext":
+    def next_version(self) -> SongContext:
         new = deepcopy(self)
         new.version += 1
         return new
@@ -57,7 +57,7 @@ class SongContext:
         if description not in self.conflicts:
             self.conflicts.append(description)
 
-    def record_decision(self, description: str, source: str = "user") -> "SongContext":
+    def record_decision(self, description: str, source: str = "user") -> SongContext:
         new = self.next_version()
         new.decisions.append(f"[{source}] {description}")
         return new

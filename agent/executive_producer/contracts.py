@@ -1,8 +1,10 @@
 """Executive Producer orchestration contracts."""
 from dataclasses import dataclass
+
 from core.candidates.models import Candidate
 from core.conversation.models import ExecutiveProducerIntent
 from core.music_context.models import SongContext
+
 
 @dataclass(frozen=True)
 class ProductionRequest:

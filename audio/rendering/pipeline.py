@@ -4,10 +4,10 @@ from __future__ import annotations
 from dataclasses import asdict
 from typing import Literal
 
+from audio.rendering.contracts import RenderRequest, build_render_request
 from core.candidates.models import Candidate
 from core.music_context.models import SongContext
 from core.project.models import MusicProject
-from audio.rendering.contracts import RenderRequest, build_render_request
 
 
 def _authority_analysis(

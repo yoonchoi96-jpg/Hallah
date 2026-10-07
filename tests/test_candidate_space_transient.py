@@ -1,8 +1,10 @@
-from audio.rendering.contracts import build_render_request
-from audio.rendering.source import SourceAudioGenerator
 import math
 import wave
+
 import numpy as np
+
+from audio.rendering.contracts import build_render_request
+from audio.rendering.source import SourceAudioGenerator
 
 
 def _write_stereo_source(path):

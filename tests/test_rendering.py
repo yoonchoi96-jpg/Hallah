@@ -1,5 +1,5 @@
-from audio.rendering.contracts import RenderResult, build_render_request
 from audio.cache import build_cache_key
+from audio.rendering.contracts import RenderResult, build_render_request
 
 
 def test_render_request_is_bound_to_context_and_candidate():

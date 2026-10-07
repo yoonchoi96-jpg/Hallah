@@ -1,13 +1,13 @@
 """Deterministic, role-aware MIDI generation for candidate previews."""
 from __future__ import annotations
 
+import struct
+from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
-import struct
-from typing import Mapping
 
 from audio.cache.keys import build_cache_key
-from audio.midi.harmony import parse_chord, voice_chord, nearest_pitch
+from audio.midi.harmony import nearest_pitch, parse_chord, voice_chord
 from audio.rendering.contracts import RenderRequest, RenderResult
 
 

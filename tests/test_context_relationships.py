@@ -2,6 +2,7 @@ from core.analysis.contracts import AudioAnalysis
 from core.music_context.authority import infer_authority
 from core.music_context.resolve import build_relationships, detect_conflicts
 
+
 def test_authority_relationships_are_dimension_specific():
     analyses = [
         AudioAnalysis("drums.wav", bpm=120, role="drums", confidence={"role": .9}),

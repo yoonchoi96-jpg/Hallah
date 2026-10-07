@@ -1,8 +1,11 @@
 import math
 import wave
 from pathlib import Path
+
 import numpy as np
+
 from core.analysis.wav import WavAnalyzer
+
 
 def write_tone(path: Path, hz: float, seconds: float = 1.0, sr: int = 44100):
     t = np.arange(int(sr * seconds)) / sr

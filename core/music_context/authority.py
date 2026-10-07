@@ -1,5 +1,6 @@
 """Infer musical authority from analysis results."""
 from __future__ import annotations
+
 from core.analysis.contracts import AudioAnalysis
 from core.music_context.models import MusicalAuthority
 

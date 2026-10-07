@@ -6,9 +6,8 @@ is a hard conflict.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass
-import math
 import re
+from dataclasses import dataclass
 
 from core.analysis.contracts import AudioAnalysis
 from core.music_context.constraints import ContextConstraint, MusicalRelationship

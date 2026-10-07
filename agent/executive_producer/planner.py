@@ -1,9 +1,12 @@
 """Deterministic V0 natural-language production planner."""
 from __future__ import annotations
-from dataclasses import dataclass
+
 import re
-from core.music_context.models import SongContext, MusicalAuthority
+from dataclasses import dataclass
+
 from core.music_context.constraints import ContextConstraint
+from core.music_context.models import MusicalAuthority, SongContext
+
 
 @dataclass(frozen=True)
 class ContextPatch:
