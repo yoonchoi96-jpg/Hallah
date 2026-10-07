@@ -39,7 +39,7 @@ class MusicProject:
         """Return project asset IDs in deterministic project order."""
         return tuple(asset.id for asset in self.assets)
 
-    def with_context(self, context: SongContext) -> "MusicProject":
+    def with_context(self, context: SongContext) -> MusicProject:
         """Return the same project asset registry bound to a new SongContext."""
         return MusicProject(id=self.id, context=context, assets=list(self.assets))
 
