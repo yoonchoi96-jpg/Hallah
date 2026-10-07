@@ -37,7 +37,7 @@ def _window_for(meta: dict[str, object]) -> tuple[float, float]:
     if role in {"vocal", "lead", "melody"} or dimension == "melody":
         return 0.025, 0.16
     if role in {"kick", "drums"} or dimension == "rhythm":
-        return 0.008, 0.12
+        return 0.016, 0.12
     return 0.018, 0.10
 
 
@@ -145,8 +145,8 @@ def apply_frequency_dynamic_masking(
         for channel in range(chunk.shape[1]):
             spectrum = np.fft.rfft(chunk[:, channel] * window)
             rendered = np.fft.irfft(spectrum * gain, n=frame).astype(np.float32)
-            out[start:stop, channel] += rendered * window
-        norm[start : start + valid_len] += window * window
+            out[start : start + valid_len, channel] += (rendered * window)[:valid_len]
+        norm[start : start + valid_len] += window[:valid_len] * window[:valid_len]
     valid = norm > 1e-8
     out[valid] /= norm[valid, None]
     out[~valid] = 0.0
