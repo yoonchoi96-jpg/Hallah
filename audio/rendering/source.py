@@ -43,6 +43,8 @@ class SourceAudioGenerator:
         override=changes.get("pitch_adaptation")
         if isinstance(override,bool):
             return override
+        if isinstance(changes.get("key"), str) and changes.get("key"):
+            return True
         dimension=cls._authority_dimension(meta)
         return dimension in {"harmony", "melody", "low_end", "texture", "arrangement"}
     @staticmethod
