@@ -133,8 +133,9 @@ def apply_frequency_dynamic_masking(
             selected_ranges[band] = (lo, hi)
     minimum = max(0.0, 1.0 - min(0.35, float(amount)))
     for start in range(0, len(data), hop):
-        stop = start + frame
-        chunk = padded[start:stop]
+        stop = min(start + frame, len(data))
+        padded_stop = start + frame
+        chunk = padded[start:padded_stop]
         if len(chunk) < frame:
             chunk = np.pad(chunk, ((0, frame - len(chunk)), (0, 0)))
         center = min(len(data) - 1, start + frame // 2)
@@ -534,8 +535,10 @@ def apply_spectral_curve_dynamic_masking(
             chunk = np.pad(chunk, ((0, frame - len(chunk)), (0, 0)))
         event_gain = float(envelope[min(len(data) - 1, start + frame // 2)])
         local_curve = curve
+        gain_mid = 1.0 + (local_curve - 1.0) * (1.0 - event_gain)
+        gain_side = gain_mid
         if reference_padded is not None and mask.any():
-            ref_chunk = reference_padded[start:stop]
+            ref_chunk = reference_padded[start:padded_stop]
             if len(ref_chunk) < frame:
                 ref_chunk = np.pad(ref_chunk, ((0, frame - len(ref_chunk)), (0, 0)))
             mid_centers, side_centers = _spectral_component_collision(
