@@ -53,7 +53,7 @@ def parse_production_intent(utterance: str) -> ProductionIntent:
     return ProductionIntent(text,tuple(fixed),tuple(authorities),tuple(constraints),bpm,tonal_source,tuple(adaptations))
 
 def plan_context_patch(context: SongContext, intent: ProductionIntent) -> ContextPatch:
-    ops=[]
+    ops: list[tuple[str, str, str | None, str | None]] = []
     for source,dimension in intent.authority_requests: ops.append(("authority",source,dimension,None))
     for source,dimension,mode in intent.adaptation_requests: ops.append(("adaptation",source,dimension,mode))
     for source in intent.fixed_sources: ops.append(("constraint",source,"fixed",None))
@@ -78,6 +78,8 @@ def apply_patch(context: SongContext, patch: ContextPatch) -> SongContext:
                 new.adaptation_overrides.setdefault(target, {})[dimension] = mode or True
                 new.pending_decisions.append(f"User override: {target} {dimension} adaptation enabled.")
         elif op=="authority":
+            if dimension is None:
+                continue
             auth=MusicalAuthority(target,dimension,1.0,"Explicit user direction.")
             new.authorities=[a for a in new.authorities if not (a.source_id==target and a.dimension==dimension)]
             new.authorities.append(auth)
