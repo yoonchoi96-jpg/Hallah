@@ -171,6 +171,41 @@ def apply_frequency_dynamic_masking(
     return (data.astype(np.float32, copy=False) * envelope[:, None]).astype(np.float32), metadata
 
 
+def _spectral_collision_centers(
+    data: np.ndarray,
+    sr: int,
+    reference_center_hz: float,
+    low_hz: float,
+    high_hz: float,
+    max_peaks: int = 4,
+) -> tuple[float, ...]:
+    """Find several strong source peaks near the reference center."""
+    if len(data) == 0 or high_hz <= low_hz:
+        return (reference_center_hz,)
+    mono = np.mean(data.astype(np.float32, copy=False), axis=1)
+    frame = min(4096, max(512, 2 ** int(np.log2(max(512, min(len(mono), 4096))))))
+    if len(mono) < frame:
+        mono = np.pad(mono, (0, frame - len(mono)))
+    spectrum = np.abs(np.fft.rfft(mono[:frame] * np.hanning(frame)))
+    freqs = np.fft.rfftfreq(frame, 1.0 / sr)
+    mask = (freqs >= max(low_hz, reference_center_hz * 0.45)) & (freqs <= min(high_hz, reference_center_hz * 1.8))
+    indices = np.flatnonzero(mask)
+    if not len(indices):
+        return (reference_center_hz,)
+    values = spectrum[indices].copy()
+    peaks = []
+    spacing = max(2, int(round(40.0 / (freqs[1] - freqs[0]))))
+    for _ in range(max(1, max_peaks)):
+        i = int(np.argmax(values))
+        if values[i] <= 0:
+            break
+        idx = int(indices[i])
+        peaks.append(float(freqs[idx]))
+        left, right = max(0, i - spacing), min(len(values), i + spacing + 1)
+        values[left:right] = 0.0
+    return tuple(peaks) or (reference_center_hz,)
+
+
 def _spectral_collision_center(
     data: np.ndarray,
     sr: int,
@@ -239,17 +274,24 @@ def apply_spectral_curve_dynamic_masking(
         center_hz = sum(c for _, c in centers) / len(centers)
     else:
         center_hz = min(1000.0, sr * 0.25)
+    centers_hz = (center_hz,)
     if mask.any():
         selected = np.flatnonzero(mask)
         lo_hz = float(freqs[selected[0]])
         hi_hz = float(freqs[selected[-1]])
-        center_hz = _spectral_collision_center(data, sr, center_hz, lo_hz, hi_hz)
+        centers_hz = _spectral_collision_centers(data, sr, center_hz, lo_hz, hi_hz)
+        center_hz = centers_hz[0]
     sigma = max(35.0, center_hz * 0.28)
     minimum = max(0.0, 1.0 - min(0.35, float(amount)))
     curve = np.ones(len(freqs), dtype=np.float32)
     if mask.any():
         distance = (freqs - center_hz) / sigma
-        curve[mask] = 1.0 - (1.0 - minimum) * np.exp(-0.5 * distance * distance)[mask]
+        multi_curve = np.zeros_like(freqs, dtype=np.float32)
+        for peak_hz in centers_hz:
+            peak_sigma = max(35.0, float(peak_hz) * 0.28)
+            peak_distance = (freqs - peak_hz) / peak_sigma
+            multi_curve = np.maximum(multi_curve, np.exp(-0.5 * peak_distance * peak_distance).astype(np.float32))
+        curve[mask] = 1.0 - (1.0 - minimum) * multi_curve[mask]
     envelope, _ = build_dynamic_envelope(len(data), sr, source_meta, reference_meta, amount)
     for start in range(0, len(data), hop):
         stop = start + frame
@@ -269,5 +311,5 @@ def apply_spectral_curve_dynamic_masking(
     return out[:len(data)].astype(np.float32), {
         "applied": True, "amount": min(0.35, max(0.0, float(amount))),
         "events": len(events), "bands": tuple(b for b, _ in centers),
-        "center_hz": center_hz, "sigma_hz": sigma,
+        "center_hz": center_hz, "center_hz_all": tuple(centers_hz), "sigma_hz": sigma,
     }
