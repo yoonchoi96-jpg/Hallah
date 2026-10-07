@@ -64,7 +64,7 @@ def test_dynamic_masking_has_ramped_edges():
 
 def test_frequency_dynamic_masking_ducks_only_selected_band():
     sr = 8000
-    t = np.arange(4000) / sr
+    t = np.arange(8000) / sr
     data = np.column_stack([
         0.4 * np.sin(2 * np.pi * 80 * t) + 0.4 * np.sin(2 * np.pi * 1000 * t),
     ]).astype("float32")
