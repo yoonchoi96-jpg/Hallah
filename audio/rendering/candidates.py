@@ -40,8 +40,11 @@ def preview_candidates(
             )
         )
     by_id = {candidate.id: candidate for candidate in updated}
+    base_candidates = list(context.candidates)
+    base_ids = {candidate.id for candidate in base_candidates}
+    base_candidates.extend(candidate for candidate in updated if candidate.id not in base_ids)
     new = context.next_version()
     new.version = context.version
-    new.candidates = [by_id.get(candidate.id, candidate) for candidate in context.candidates]
+    new.candidates = [by_id.get(candidate.id, candidate) for candidate in base_candidates]
     new.candidate_history.extend(f"preview:{candidate.id}:v{context.version}" for candidate in updated)
     return new
