@@ -91,6 +91,7 @@ def build_dynamic_envelope(
         "amount": min(0.35, max(0.0, float(amount))),
         "events": len(events),
         "reference_id": str(reference_meta.get("_source_id", "")),
+        "alignment": alignment_meta,
     }
 
 
@@ -428,8 +429,9 @@ def apply_spectral_curve_dynamic_masking(
     """Apply a smooth spectral ducking curve with optional frame-by-frame spectral tracking."""
     if len(data) == 0 or sr <= 0 or amount <= 0:
         return data.astype(np.float32, copy=True), {"applied": False, "events": 0, "curve": ()}
+    aligned_reference_meta = dict(reference_meta)
     duration = len(data) / float(sr)
-    events = _events_seconds(reference_meta, duration)
+    events = _events_seconds(aligned_reference_meta, duration)
     if not events:
         return data.astype(np.float32, copy=True), {"applied": False, "events": 0, "curve": ()}
     if ranges is None:
@@ -498,8 +500,14 @@ def apply_spectral_curve_dynamic_masking(
     strength_attack = 0.45
     strength_release = 0.16
     reference_padded = None
+    alignment_meta = {"applied": False, "bpm_ratio": 1.0, "lag_samples": 0, "lag_seconds": 0.0}
     if reference_data is not None and len(reference_data):
-        reference_array = reference_data.astype(np.float32, copy=False)
+        reference_array, aligned_reference_meta, alignment_meta = _align_reference_to_source(
+            data, reference_data, sr, source_meta, reference_meta
+        )
+        envelope, _ = build_dynamic_envelope(
+            len(data), sr, source_meta, aligned_reference_meta, amount
+        )
         reference_padded = np.pad(
             reference_array,
             ((0, max(0, len(data) - len(reference_array))), (0, 0)),
