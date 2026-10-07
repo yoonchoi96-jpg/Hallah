@@ -7,7 +7,7 @@ dependencies = [
   "numpy>=2.0",
 ]
 readme = "README.md"
-license = {text = "MIT"}
+license = "MIT"
 
 [project.optional-dependencies]
 dev = [
@@ -15,6 +15,9 @@ dev = [
   "ruff>=0.6",
   "mypy>=1.11",
 ]
+
+[tool.setuptools.packages.find]
+include = ["apps*", "core*", "audio*", "agent*", "plugins*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
