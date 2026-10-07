@@ -102,6 +102,7 @@ def apply_frequency_dynamic_masking(
     amount: float,
     bands: tuple[str, ...] = ("low", "mid", "high"),
     ranges: dict[str, tuple[float, float]] | None = None,
+    reference_data: np.ndarray | None = None,
 ) -> tuple[np.ndarray, dict[str, object]]:
     """Duck only overlapping spectral regions when reference events are active."""
     if len(data) == 0 or sr <= 0 or amount <= 0:
@@ -322,7 +323,12 @@ def apply_spectral_curve_dynamic_masking(
         selected = np.flatnonzero(mask)
         lo_hz = float(freqs[selected[0]])
         hi_hz = float(freqs[selected[-1]])
-        centers_hz = _spectral_collision_centers(data, sr, center_hz, lo_hz, hi_hz)
+        if reference_data is not None:
+            centers_hz = _spectral_collision_peaks(data, reference_data, sr, lo_hz, hi_hz)
+        else:
+            centers_hz = _spectral_collision_centers(data, sr, center_hz, lo_hz, hi_hz)
+        if not centers_hz:
+            centers_hz = (center_hz,)
         center_hz = centers_hz[0]
     sigma = max(35.0, center_hz * 0.28)
     minimum = max(0.0, 1.0 - min(0.35, float(amount)))
