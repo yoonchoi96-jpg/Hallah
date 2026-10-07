@@ -1,3 +1,5 @@
+import numpy as np
+
 from audio.processing.dynamic_masking import apply_dynamic_masking, build_dynamic_envelope
 from audio.processing.masking import build_relationship_map
 
@@ -213,3 +215,53 @@ def test_spectral_collision_strength_controls_ducking_depth():
     assert sm["tracking_strength_max"] > wm["tracking_strength_max"]
     assert strong_rms < weak_rms
     assert strong_rms < original_rms
+
+
+def test_spectral_collision_tracking_smooths_frequency_jumps():
+    from audio.processing.dynamic_masking import apply_spectral_curve_dynamic_masking
+
+    sr = 8000
+    n = 12000
+    time = np.arange(n, dtype=np.float32) / sr
+    first = time < 0.75
+    source = np.where(
+        first,
+        np.sin(2 * np.pi * 800 * time),
+        np.sin(2 * np.pi * 1400 * time),
+    ).astype(np.float32)
+    reference = source.copy()
+    _, meta = apply_spectral_curve_dynamic_masking(
+        source[:, None], sr,
+        {"role": "guitar", "bpm": 60.0},
+        {"role": "vocal", "bpm": 60.0, "onset_beats": (0.0,),
+         "note_durations_beats": (2.0,), "_source_id": "vocal"},
+        0.30, bands=("mid",), ranges={"mid": (500.0, 1800.0)},
+        reference_data=reference[:, None],
+    )
+    smoothed = tuple(float(x) for x in meta["smoothed_centers_hz"])
+    assert len(smoothed) > 3
+    assert any(850.0 < x < 1350.0 for x in smoothed)
+    assert float(meta["tracking_max_center_jump_hz"]) < 220.0
+
+
+def test_spectral_collision_strength_attack_release_is_smoothed():
+    from audio.processing.dynamic_masking import apply_spectral_curve_dynamic_masking
+
+    sr = 8000
+    n = 12000
+    time = np.arange(n, dtype=np.float32) / sr
+    source = np.sin(2 * np.pi * 1000 * time).astype(np.float32)
+    reference = np.sin(2 * np.pi * 1000 * time).astype(np.float32)
+    reference[(time >= 0.55) & (time < 0.75)] *= 0.1
+    _, meta = apply_spectral_curve_dynamic_masking(
+        source[:, None], sr,
+        {"role": "guitar", "bpm": 60.0},
+        {"role": "vocal", "bpm": 60.0, "onset_beats": (0.0,),
+         "note_durations_beats": (2.0,), "_source_id": "vocal"},
+        0.30, bands=("mid",), ranges={"mid": (700.0, 1300.0)},
+        reference_data=reference[:, None],
+    )
+    strengths = tuple(float(x) for x in meta["smoothed_strengths"])
+    assert len(strengths) > 3
+    assert max(strengths) > min(strengths)
+    assert max(abs(b - a) for a, b in zip(strengths, strengths[1:])) < 0.5
