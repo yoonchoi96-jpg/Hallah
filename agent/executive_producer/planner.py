@@ -48,6 +48,9 @@ def parse_production_intent(utterance: str) -> ProductionIntent:
         adaptations.append(("guitar","rhythm","user_override"))
     if re.search(r"(드럼|drum).*(bpm|템포).*(기타|guitar).*(맞춰|따라)", text, re.IGNORECASE):
         adaptations.append(("drums","bpm","guitar"))
+    elif re.search(r"(bpm|템포).*(드럼|drum).*(따라|기준)", text, re.IGNORECASE):
+        if ("drums", "rhythm") not in authorities:
+            authorities.append(("drums", "rhythm"))
     if fixed: constraints += [f"{s}:fixed" for s in fixed]
     if re.search(r"(다른 악기|나머지|여러 악기).*(기타|guitar).*(맞춰|따라)", text, re.IGNORECASE):
         constraints.append("other_tracks:adapt_to:guitar")
