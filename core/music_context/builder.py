@@ -2,10 +2,12 @@
 from __future__ import annotations
 
 from core.analysis.contracts import AudioAnalysis
+from core.analysis.engine import Analyzer, analyze_project_assets
 from core.music_context.authority import infer_authority
 from core.music_context.models import SongContext
 from core.music_context.relationships import analyze_relationships, merge_conflicts
 from core.music_context.resolve import resolve_authorities
+from core.project.models import MusicProject
 
 
 def _best_for_dimension(
@@ -54,3 +56,14 @@ def build_song_context(analyses: list[AudioAnalysis], title: str = "Untitled") -
         "dimension-specific authorities resolve shared musical state."
     )
     return ctx
+
+
+
+def build_song_context_from_project(
+    project: MusicProject,
+    analyzer: Analyzer,
+    title: str | None = None,
+) -> SongContext:
+    """Build musical context directly from a project's registered source assets."""
+    batch = analyze_project_assets(analyzer, project)
+    return build_song_context(list(batch.results), title or project.id)
