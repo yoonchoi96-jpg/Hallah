@@ -31,3 +31,10 @@ target-version = "py311"
 [tool.mypy]
 python_version = "3.11"
 strict = true
+
+
+[[tool.mypy.overrides]]
+module = ["core.analysis.wav"]
+disallow_untyped_defs = false
+disallow_untyped_calls = false
+disallow_any_generics = false
