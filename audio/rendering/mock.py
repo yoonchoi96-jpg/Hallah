@@ -61,7 +61,7 @@ class MockAudioGenerator:
             kind="audio",
             artifact_ref=str(output),
             cache_key=cache_key,
-            duration_seconds=duration,
+            duration_seconds=max(2.0, duration),
             sample_rate=44_100,
             metadata={"renderer": "deterministic-synth-v0.4", "preview": True},
         )
