@@ -157,6 +157,7 @@ def apply_frequency_dynamic_masking(
     }
 
 
+def apply_dynamic_masking(
     data: np.ndarray,
     sr: int,
     source_meta: dict[str, object],
@@ -216,8 +217,7 @@ def _spectral_collision_peaks(
 
 
 def _spectral_collision_centers(
-    data: np.ndarray,
-    sr: int,
+    data: np.ndarray,    sr: int,
     reference_center_hz: float,
     low_hz: float,
     high_hz: float,
@@ -345,6 +345,14 @@ def apply_spectral_curve_dynamic_masking(
     envelope, _ = build_dynamic_envelope(len(data), sr, source_meta, reference_meta, amount)
     tracked_centers: list[float] = []
     tracked_strengths: list[float] = []
+    smoothed_centers: list[float] = []
+    smoothed_strengths: list[float] = []
+    previous_centers: list[float] = []
+    previous_strengths: list[float] = []
+    max_center_jump_hz = 180.0
+    center_smoothing = 0.35
+    strength_attack = 0.45
+    strength_release = 0.16
     reference_padded = None
     if reference_data is not None and len(reference_data):
         reference_padded = np.pad(
@@ -358,36 +366,71 @@ def apply_spectral_curve_dynamic_masking(
             chunk = np.pad(chunk, ((0, frame - len(chunk)), (0, 0)))
         event_gain = float(envelope[min(len(data) - 1, start + frame // 2)])
         local_curve = curve
-        if reference_padded is not None:
+        if reference_padded is not None and mask.any():
             ref_chunk = reference_padded[start:stop]
             if len(ref_chunk) < frame:
                 ref_chunk = np.pad(ref_chunk, ((0, frame - len(ref_chunk)), (0, 0)))
             local_centers = _spectral_collision_peaks(
                 chunk, ref_chunk, sr, lo_hz, hi_hz, max_peaks=4
             )
-            if local_centers:
-                tracked_centers.extend(local_centers)
-                # Estimate collision strength from normalized spectra at each tracked peak.
-                mono_s = np.mean(chunk, axis=1)
-                mono_r = np.mean(ref_chunk, axis=1)
-                ss = np.abs(np.fft.rfft(mono_s * window))
-                rr = np.abs(np.fft.rfft(mono_r * window))
-                denom_s, denom_r = max(float(np.max(ss)), 1e-9), max(float(np.max(rr)), 1e-9)
-                freqs_local = np.fft.rfftfreq(frame, 1.0 / sr)
-                strengths = []
-                for peak in local_centers:
-                    idx = int(np.argmin(np.abs(freqs_local - peak)))
-                    strengths.append(float(np.sqrt((ss[idx] / denom_s) * (rr[idx] / denom_r))))
-                tracked_strengths.extend(strengths)
+            mono_s = np.mean(chunk, axis=1)
+            mono_r = np.mean(ref_chunk, axis=1)
+            ss = np.abs(np.fft.rfft(mono_s * window))
+            rr = np.abs(np.fft.rfft(mono_r * window))
+            denom_s = max(float(np.max(ss)), 1e-9)
+            denom_r = max(float(np.max(rr)), 1e-9)
+            freqs_local = np.fft.rfftfreq(frame, 1.0 / sr)
+            raw_strengths = []
+            for peak in local_centers:
+                idx = int(np.argmin(np.abs(freqs_local - peak)))
+                raw_strengths.append(float(np.sqrt((ss[idx] / denom_s) * (rr[idx] / denom_r))))
+
+            # Track peaks across adjacent frames. Limit movement first, then
+            # smooth frequency so a changing collision does not jump abruptly.
+            current = list(local_centers)
+            matched_previous = set()
+            next_centers: list[float] = []
+            next_strengths: list[float] = []
+            for peak, raw_strength in zip(current, raw_strengths):
+                best = None
+                best_distance = max_center_jump_hz + 1.0
+                for idx, previous in enumerate(previous_centers):
+                    if idx in matched_previous:
+                        continue
+                    distance = abs(float(peak) - float(previous))
+                    if distance < best_distance:
+                        best = idx
+                        best_distance = distance
+                if best is None:
+                    smoothed_peak = float(peak)
+                    smoothed_strength = float(raw_strength)
+                else:
+                    matched_previous.add(best)
+                    previous = float(previous_centers[best])
+                    delta = float(peak) - previous
+                    delta = max(-max_center_jump_hz, min(max_center_jump_hz, delta))
+                    target = previous + delta
+                    smoothed_peak = previous + center_smoothing * (target - previous)
+                    previous_strength = float(previous_strengths[best])
+                    coeff = strength_attack if raw_strength > previous_strength else strength_release
+                    smoothed_strength = previous_strength + coeff * (float(raw_strength) - previous_strength)
+                next_centers.append(smoothed_peak)
+                next_strengths.append(smoothed_strength)
+
+            previous_centers = next_centers
+            previous_strengths = next_strengths
+            if next_centers:
+                tracked_centers.extend(float(v) for v in local_centers)
+                tracked_strengths.extend(float(v) for v in raw_strengths)
+                smoothed_centers.extend(next_centers)
+                smoothed_strengths.extend(next_strengths)
                 local_curve = np.ones(len(freqs), dtype=np.float32)
                 multi = np.zeros_like(freqs, dtype=np.float32)
-                for peak, strength in zip(local_centers, strengths):
+                for peak, strength in zip(next_centers, next_strengths):
                     peak_sigma = max(35.0, float(peak) * 0.28)
                     peak_curve = np.exp(
                         -0.5 * ((freqs - peak) / peak_sigma) ** 2
                     ).astype(np.float32)
-                    # Stronger source/reference overlap receives deeper ducking;
-                    # weak overlap remains close to transparent.
                     strength_floor = 0.12
                     normalized_strength = min(
                         1.0, max(0.0, (float(strength) - strength_floor) / (1.0 - strength_floor))
@@ -411,7 +454,15 @@ def apply_spectral_curve_dynamic_masking(
         "tracking": reference_data is not None,
         "tracked_centers_hz": tuple(tracked_centers),
         "tracked_strengths": tuple(tracked_strengths),
-        "tracked_frame_count": len(tracked_strengths),
+        "smoothed_centers_hz": tuple(smoothed_centers),
+        "smoothed_strengths": tuple(smoothed_strengths),
+        "tracked_frame_count": len(smoothed_centers),
         "tracking_strength_max": max(tracked_strengths, default=0.0),
         "tracking_strength_mean": float(np.mean(tracked_strengths)) if tracked_strengths else 0.0,
+        "smoothed_strength_max": max(smoothed_strengths, default=0.0),
+        "smoothed_strength_mean": float(np.mean(smoothed_strengths)) if smoothed_strengths else 0.0,
+        "tracking_max_center_jump_hz": max(
+            (abs(b - a) for a, b in zip(smoothed_centers, smoothed_centers[1:])),
+            default=0.0,
+        ),
     }
