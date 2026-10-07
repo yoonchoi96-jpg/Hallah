@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from core.analysis.contracts import AudioAnalysis
 from core.music_context.models import MusicalAuthority
+from typing import Literal, cast
 
 ROLE_TO_DIMENSIONS = {
     "drums": ("rhythm",),
@@ -13,13 +14,13 @@ ROLE_TO_DIMENSIONS = {
 }
 
 def infer_authority(analyses: list[AudioAnalysis]) -> list[MusicalAuthority]:
-    authorities = []
+    authorities: list[MusicalAuthority] = []
     for a in analyses:
         if not a.role:
             continue
         confidence = a.confidence.get("role", 0.0)
         for dimension in ROLE_TO_DIMENSIONS.get(a.role, ()):
             authorities.append(MusicalAuthority(
-                source_id=a.asset_id, dimension=dimension, confidence=confidence,
+                source_id=a.asset_id, dimension=cast(Literal["harmony", "rhythm", "melody", "low_end", "texture", "arrangement"], dimension), confidence=confidence,
                 rationale=f"Role inferred as {a.role}."))
     return authorities
