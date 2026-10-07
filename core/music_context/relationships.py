@@ -140,7 +140,8 @@ def analyze_relationships(
 
             low_overlap = (min(left.low_energy_ratio, right.low_energy_ratio)
                           if left.low_energy_ratio is not None and right.low_energy_ratio is not None
-                          else 0.0)\n            spectral_overlap = _spectral_overlap(left, right)\n            if low_overlap >= LOW_END_MASK_THRESHOLD:\n                if left.low_energy_ratio is not None and right.low_energy_ratio is not None:\n                    relationships.append(MusicalRelationship(
+                          else 0.0)
+            spectral_overlap = _spectral_overlap(left, right)\n            if low_overlap >= LOW_END_MASK_THRESHOLD:\n                if left.low_energy_ratio is not None and right.low_energy_ratio is not None:\n                    relationships.append(MusicalRelationship(
                         left.asset_id, right.asset_id, "conflict", "low_end", 1.0,
                         f"Likely low-end masking; shared low-band energy={low_overlap:.2f}.",
                     ))
