@@ -9,6 +9,7 @@ from audio.rendering.pipeline import candidate_to_render_request
 from core.candidates.lifecycle import CandidateLifecycleError, transition_candidate
 from core.candidates.models import Candidate
 from core.music_context.models import SongContext
+from core.project.models import MusicProject
 
 
 def preview_candidates(
@@ -17,6 +18,7 @@ def preview_candidates(
     renderer: CandidateRenderer,
     *,
     kind: Literal["audio", "midi"] = "midi",
+    project: MusicProject | None = None,
 ) -> SongContext:
     """Render candidates without advancing musical context version."""
     source = tuple(candidates)
@@ -27,7 +29,7 @@ def preview_candidates(
                 f"Cannot preview stale candidate {candidate.id}: "
                 f"v{candidate.parent_context_version} != v{context.version}."
             )
-        result = renderer.render(candidate_to_render_request(candidate, context, kind=kind))
+        result = renderer.render(candidate_to_render_request(candidate, context, kind=kind, project=project))
         ready = transition_candidate(candidate, "preview_ready")
         updated.append(
             replace(
