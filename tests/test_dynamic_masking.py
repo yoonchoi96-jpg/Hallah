@@ -183,3 +183,33 @@ def test_spectral_curve_tracks_collision_frequency_over_time():
     assert any(abs(x - 800.0) < 80.0 for x in centers)
     assert any(abs(x - 1400.0) < 80.0 for x in centers)
     assert len(out) == n
+
+
+def test_spectral_collision_strength_controls_ducking_depth():
+    from audio.processing.dynamic_masking import apply_spectral_curve_dynamic_masking
+    sr = 8000
+    time = np.arange(8000, dtype=np.float32) / sr
+    source = np.sin(2 * np.pi * 1000 * time).astype(np.float32)
+    strong_ref = source.copy()
+    weak_ref = (0.05 * source).astype(np.float32)
+    common = {
+        "role": "vocal", "bpm": 60.0, "onset_beats": (0.25,),
+        "note_durations_beats": (0.5,), "spectral_centroid_hz": 1000.0,
+        "_source_id": "vocal",
+    }
+    strong, sm = apply_spectral_curve_dynamic_masking(
+        source[:, None], sr, {"role": "guitar", "bpm": 60.0},
+        common, 0.30, bands=("mid",), ranges={"mid": (700.0, 1300.0)},
+        reference_data=strong_ref[:, None],
+    )
+    weak, wm = apply_spectral_curve_dynamic_masking(
+        source[:, None], sr, {"role": "guitar", "bpm": 60.0},
+        common, 0.30, bands=("mid",), ranges={"mid": (700.0, 1300.0)},
+        reference_data=weak_ref[:, None],
+    )
+    strong_rms = float(np.sqrt(np.mean(strong[2200:3800, 0] ** 2)))
+    weak_rms = float(np.sqrt(np.mean(weak[2200:3800, 0] ** 2)))
+    original_rms = float(np.sqrt(np.mean(source[2200:3800] ** 2)))
+    assert sm["tracking_strength_max"] > wm["tracking_strength_max"]
+    assert strong_rms < weak_rms
+    assert strong_rms < original_rms
