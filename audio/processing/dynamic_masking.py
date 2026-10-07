@@ -1,4 +1,4 @@
-"""Event-aware time-domain masking for source-backed renders."""
+"""Event-aware spectral and time-domain masking for source-backed renders."""
 from __future__ import annotations
 
 import numpy as np
