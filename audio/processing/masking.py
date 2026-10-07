@@ -82,7 +82,7 @@ def resolve_masking(source_id: str, authority_analysis: dict[str, dict[str, obje
             reason = f"{ref_id} is a dependency reference for {source.get('dimension', 'the relevant dimension')}."
         elif conflict_relationship:
             reason = f"{ref_id} has an explicit musical conflict relationship."
-        decisions.append({"reference_id": ref_id, "bands": tuple(shared), "ranges": {band: _band_ranges(source, sample_rate)[band] for band in shared}, "priority": ref_priority, "amount": min(0.24, 0.08 + (ref_priority - source_priority) / 500.0), "reason": reason})
+        decisions.append({"reference_id": ref_id, "bands": tuple(shared), "ranges": _band_ranges(source, sample_rate), "priority": ref_priority, "amount": min(0.24, 0.08 + (ref_priority - source_priority) / 500.0), "reason": reason})
     return {"source_priority": source_priority, "decisions": tuple(decisions)}
 
 def build_relationship_map(authority_analysis: dict[str, dict[str, object]], relationships: tuple[dict[str, object], ...] = ()) -> dict[str, dict[str, object]]:
