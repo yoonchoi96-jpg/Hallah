@@ -4,7 +4,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from core.candidates.models import Candidate, CandidateStatus
-from core.music_context.models import SongContext
+from core.music_context.models import MusicalAuthority, SongContext
 
 
 class CandidateLifecycleError(ValueError):
@@ -165,6 +165,33 @@ def apply_candidate(context: SongContext, candidate: Candidate) -> SongContext:
                 new.scale = str(value)
             elif key == "title":
                 new.title = str(value)
+
+    authority_changes = current.parameter_changes.get("authority_changes", {})
+    if isinstance(authority_changes, dict):
+        for dimension, source_id in authority_changes.items():
+            dimension_text = str(dimension)
+            source_text = str(source_id)
+            new.authorities = [
+                authority
+                for authority in new.authorities
+                if authority.dimension != dimension_text
+            ]
+            new.authorities.append(
+                MusicalAuthority(
+                    source_id=source_text,
+                    dimension=dimension_text,  # type: ignore[arg-type]
+                    confidence=1.0,
+                    rationale=f"Explicitly selected by candidate {current.id}.",
+                )
+            )
+
+    adaptation_changes = current.parameter_changes.get("adaptation_overrides", {})
+    if isinstance(adaptation_changes, dict):
+        for source_id, dimensions in adaptation_changes.items():
+            if not isinstance(dimensions, dict):
+                continue
+            existing = new.adaptation_overrides.setdefault(str(source_id), {})
+            existing.update({str(key): value for key, value in dimensions.items()})
 
     new.candidate_history.append(f"applied:{current.id}:v{new.version}")
     new.decisions.append(
