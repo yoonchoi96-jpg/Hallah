@@ -1,6 +1,5 @@
 """Deterministic analysis orchestration for Music Agent V0."""
 
-from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Protocol
 
