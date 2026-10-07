@@ -10,6 +10,16 @@ class Analyzer(Protocol):
     def analyze(self, asset_id: str) -> AudioAnalysis: ...
 
 
+class ProjectAsset(Protocol):
+    id: str
+    path: str
+    role_hint: str | None
+
+
+class ProjectLike(Protocol):
+    assets: list[ProjectAsset]
+
+
 @dataclass(frozen=True)
 class AnalysisBatch:
     results: tuple[AudioAnalysis, ...]
@@ -24,7 +34,7 @@ def analyze_assets(analyzer: Analyzer, asset_ids: list[str]) -> AnalysisBatch:
 
 
 
-def analyze_project_assets(analyzer: Analyzer, project) -> AnalysisBatch:
+def analyze_project_assets(analyzer: Analyzer, project: ProjectLike) -> AnalysisBatch:
     """Analyze a MusicProject while preserving its logical asset IDs.
 
     An Analyzer operates on a concrete source reference (for example a WAV path),
