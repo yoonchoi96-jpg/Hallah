@@ -260,7 +260,7 @@ def test_synchronized_audition_rejects_mismatched_sample_rates():
         RenderResult(candidate_id="A", kind="audio", artifact_ref="a.wav", cache_key="a", duration_seconds=2.0, sample_rate=44100),
         RenderResult(candidate_id="B", kind="audio", artifact_ref="b.wav", cache_key="b", duration_seconds=2.0, sample_rate=48000),
     ]
-    with pytest.raises(ValueError, match="same sample rate"):
+    with pytest.raises(ValueError, match="share one sample rate"):
         build_synchronized_audition(1, results)
 
 
