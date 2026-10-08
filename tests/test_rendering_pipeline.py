@@ -504,3 +504,46 @@ def test_audition_runtime_pads_short_candidate_with_silence(tmp_path):
     assert block.frames == int(sr * 0.2)
     assert any(block.pcm)
     assert runtime.state.position_seconds == manifest.duration_seconds
+
+
+def test_render_manifest_runtime_end_to_end_for_four_candidates(tmp_path):
+    from audio.rendering.candidates import preview_candidates
+    from audio.rendering.contracts import (
+        RenderResult,
+        build_audition_manifest,
+        build_synchronized_audition,
+    )
+    from audio.rendering.runtime import AuditionRuntime
+
+    context = SongContext(version=30)
+    candidates = build_candidates(context, "make the bass more present")
+    renderer = MockAudioGenerator(tmp_path)
+    rendered_context = preview_candidates(
+        context, candidates, renderer, kind="audio"
+    )
+
+    results = []
+    for candidate in rendered_context.candidates:
+        request = candidate_to_render_request(candidate, rendered_context, kind="audio")
+        result = renderer.render(request)
+        results.append(result)
+
+    audition = build_synchronized_audition(rendered_context.version, results)
+    manifest = build_audition_manifest(audition)
+    runtime = AuditionRuntime(
+        manifest,
+        initial_candidate_id=manifest.candidate_ids[0],
+        initial_position_seconds=0.25,
+    )
+
+    first = runtime.read_frames(4410)
+    assert first.candidate_id == manifest.candidate_ids[0]
+    assert first.start_seconds == 0.25
+    assert runtime.state.position_seconds == 0.35
+
+    runtime.select_candidate(manifest.candidate_ids[-1])
+    second = runtime.read_frames(4410)
+    assert second.candidate_id == manifest.candidate_ids[-1]
+    assert second.start_seconds == 0.35
+    assert runtime.state.position_seconds == 0.45
+    assert second.pcm != first.pcm
