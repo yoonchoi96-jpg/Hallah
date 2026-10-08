@@ -304,7 +304,11 @@ def test_audition_manifest_is_playback_ready_and_deterministic(tmp_path):
 
 
 def test_playback_selection_switches_candidates_without_moving_playhead():
-    from audio.rendering.contracts import RenderResult, build_audition_manifest, build_synchronized_audition
+    from audio.rendering.contracts import (
+        RenderResult,
+        build_audition_manifest,
+        build_synchronized_audition,
+    )
     from audio.rendering.playback import build_playback_state, select_audition_track
 
     results = [
