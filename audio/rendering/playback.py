@@ -13,7 +13,7 @@ class AuditionPlaybackState:
     candidate_id: str
     position_seconds: float
     loop_start_seconds: float
-    loop_end_seconds: float
+    loop_end_seconds: float | None
 
 
 def select_audition_track(
@@ -72,7 +72,7 @@ def advance_playback(
     loop_start = manifest.loop_start_seconds
     loop_end = manifest.loop_end_seconds
 
-    if loop_end > loop_start:
+    if loop_end is not None and loop_end > loop_start:
         loop_length = loop_end - loop_start
         position = loop_start + ((position - loop_start) % loop_length)
     else:
