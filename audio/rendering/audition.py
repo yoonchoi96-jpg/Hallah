@@ -4,11 +4,11 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from audio.rendering.contracts import build_audition_manifest
+from audio.rendering.contracts import SynchronizedAudition, build_audition_manifest
 
 
 def write_audition_manifest(
-    audition,
+    audition: SynchronizedAudition,
     output_path: str | Path,
 ) -> str:
     """Write a deterministic JSON manifest referencing rendered audio artifacts."""
