@@ -509,7 +509,6 @@ def test_audition_runtime_pads_short_candidate_with_silence(tmp_path):
 def test_render_manifest_runtime_end_to_end_for_four_candidates(tmp_path):
     from audio.rendering.candidates import preview_candidates
     from audio.rendering.contracts import (
-        RenderResult,
         build_audition_manifest,
         build_synchronized_audition,
     )
