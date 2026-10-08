@@ -234,3 +234,41 @@ def test_preview_candidates_injects_project_asset_paths(tmp_path):
     rendered = preview_candidates(context, [candidate], renderer, kind="audio", project=project)
     assert rendered.candidates[0].audio_refs == ("preview.wav",)
     assert renderer.request.parameter_changes["asset_paths"]["guitar-main"] == str(source)
+
+
+def test_synchronized_audition_shares_one_transport_clock():
+    from audio.rendering.contracts import RenderResult, build_synchronized_audition
+    results = tuple(
+        RenderResult(candidate_id=cid, kind="audio", artifact_ref=f"{cid}.wav", cache_key=cid, duration_seconds=4.0, sample_rate=44100)
+        for cid in ("A", "B", "C", "D")
+    )
+    audition = build_synchronized_audition(7, results, loop_start_seconds=1.0, loop_end_seconds=3.0)
+    assert audition.context_version == 7
+    assert audition.sample_rate == 44100
+    assert audition.duration_seconds == 4.0
+    assert audition.candidate_ids == ("A", "B", "C", "D")
+    assert all(track.start_seconds == 0.0 for track in audition.tracks)
+    assert audition.loop_start_seconds == 1.0
+    assert audition.loop_end_seconds == 3.0
+
+
+def test_synchronized_audition_rejects_mismatched_sample_rates():
+    import pytest
+    from audio.rendering.contracts import RenderResult, build_synchronized_audition
+    results = [
+        RenderResult(candidate_id="A", kind="audio", artifact_ref="a.wav", cache_key="a", duration_seconds=2.0, sample_rate=44100),
+        RenderResult(candidate_id="B", kind="audio", artifact_ref="b.wav", cache_key="b", duration_seconds=2.0, sample_rate=48000),
+    ]
+    with pytest.raises(ValueError, match="same sample rate"):
+        build_synchronized_audition(1, results)
+
+
+def test_synchronized_audition_uses_longest_candidate_as_transport_duration():
+    from audio.rendering.contracts import RenderResult, build_synchronized_audition
+    results = [
+        RenderResult(candidate_id="A", kind="audio", artifact_ref="a.wav", cache_key="a", duration_seconds=2.0, sample_rate=44100),
+        RenderResult(candidate_id="B", kind="audio", artifact_ref="b.wav", cache_key="b", duration_seconds=3.5, sample_rate=44100),
+    ]
+    audition = build_synchronized_audition(2, results)
+    assert audition.duration_seconds == 3.5
+    assert tuple(track.start_seconds for track in audition.tracks) == (0.0, 0.0)
