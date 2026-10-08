@@ -131,3 +131,35 @@ def build_synchronized_audition(
         loop_start_seconds=loop_start_seconds,
         loop_end_seconds=loop_end_seconds,
     )
+
+
+@dataclass(frozen=True)
+class AuditionManifest:
+    """Playback-ready manifest for a synchronized candidate audition."""
+    context_version: int
+    sample_rate: int
+    duration_seconds: float
+    tracks: tuple[AuditionTrack, ...]
+    loop_start_seconds: float
+    loop_end_seconds: float
+
+    @property
+    def candidate_ids(self) -> tuple[str, ...]:
+        return tuple(track.candidate_id for track in self.tracks)
+
+
+def build_audition_manifest(audition: SynchronizedAudition) -> AuditionManifest:
+    """Freeze a synchronized audition into a playback-oriented manifest."""
+    loop_end = (
+        audition.duration_seconds
+        if audition.loop_end_seconds is None
+        else audition.loop_end_seconds
+    )
+    return AuditionManifest(
+        context_version=audition.context_version,
+        sample_rate=audition.sample_rate,
+        duration_seconds=audition.duration_seconds,
+        tracks=audition.tracks,
+        loop_start_seconds=audition.loop_start_seconds,
+        loop_end_seconds=loop_end,
+    )
