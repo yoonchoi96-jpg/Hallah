@@ -588,6 +588,16 @@ def apply_spectral_curve_dynamic_masking(
             )
             local_centers = mid_centers
             freqs_local = np.fft.rfftfreq(frame, 1.0 / sr)
+            if side_centers:
+                side_curve = np.ones_like(freqs_local, dtype=np.float32)
+                for peak_hz in side_centers:
+                    peak_sigma = max(35.0, float(peak_hz) * 0.28)
+                    peak_distance = (freqs_local - peak_hz) / peak_sigma
+                    side_curve = np.minimum(
+                        side_curve,
+                        1.0 - (1.0 - minimum) * np.exp(-0.5 * peak_distance * peak_distance).astype(np.float32),
+                    )
+                gain_side = 1.0 + (side_curve - 1.0) * min(1.0, (1.0 - event_gain) * 3.0)
 
             def component_strengths(
                 source_component: np.ndarray,
