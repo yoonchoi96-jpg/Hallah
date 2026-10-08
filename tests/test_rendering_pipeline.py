@@ -477,8 +477,14 @@ def test_audition_runtime_switches_wav_artifacts_at_shared_playhead(tmp_path):
 
 def test_audition_runtime_pads_short_candidate_with_silence(tmp_path):
     import wave
+
     import numpy as np
-    from audio.rendering.contracts import RenderResult, build_audition_manifest, build_synchronized_audition
+
+    from audio.rendering.contracts import (
+        RenderResult,
+        build_audition_manifest,
+        build_synchronized_audition,
+    )
     from audio.rendering.runtime import AuditionRuntime
 
     sr = 22050
