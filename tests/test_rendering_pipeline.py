@@ -428,3 +428,67 @@ def test_playback_without_loop_clamps_to_transport_bounds():
     state = build_playback_state(manifest, "A", 4.0)
     assert advance_playback(manifest, state, 3.0).position_seconds == 5.0
     assert advance_playback(manifest, state, -6.0).position_seconds == 0.0
+
+
+def test_audition_runtime_switches_wav_artifacts_at_shared_playhead(tmp_path):
+    import wave
+    import numpy as np
+    from audio.rendering.contracts import RenderResult, build_audition_manifest, build_synchronized_audition
+    from audio.rendering.runtime import AuditionRuntime
+
+    def tone(path, hz):
+        sr = 22050
+        t = np.arange(int(sr * 2.0)) / sr
+        x = 0.15 * np.sin(2 * np.pi * hz * t)
+        with wave.open(str(path), "wb") as wav:
+            wav.setnchannels(1)
+            wav.setsampwidth(2)
+            wav.setframerate(sr)
+            wav.writeframes((x * 32767).astype("<i2").tobytes())
+
+    first, second = tmp_path / "A.wav", tmp_path / "B.wav"
+    tone(first, 220)
+    tone(second, 330)
+    results = [
+        RenderResult(candidate_id="A", kind="audio", artifact_ref=str(first),
+                     cache_key="A", duration_seconds=2.0, sample_rate=22050),
+        RenderResult(candidate_id="B", kind="audio", artifact_ref=str(second),
+                     cache_key="B", duration_seconds=2.0, sample_rate=22050),
+    ]
+    manifest = build_audition_manifest(build_synchronized_audition(20, results))
+    runtime = AuditionRuntime(manifest, initial_candidate_id="A", initial_position_seconds=0.5)
+    first_block = runtime.read_frames(2205)
+    assert first_block.candidate_id == "A"
+    assert first_block.start_seconds == 0.5
+    assert runtime.state.position_seconds == 0.6
+    runtime.select_candidate("B")
+    second_block = runtime.read_frames(2205)
+    assert second_block.candidate_id == "B"
+    assert second_block.start_seconds == 0.6
+    assert runtime.state.position_seconds == 0.7
+    assert second_block.pcm != first_block.pcm
+
+
+def test_audition_runtime_pads_short_candidate_with_silence(tmp_path):
+    import wave
+    import numpy as np
+    from audio.rendering.contracts import RenderResult, build_audition_manifest, build_synchronized_audition
+    from audio.rendering.runtime import AuditionRuntime
+
+    sr = 22050
+    t = np.arange(int(sr * 0.5)) / sr
+    x = 0.15 * np.sin(2 * np.pi * 220 * t)
+    path = tmp_path / "short.wav"
+    with wave.open(str(path), "wb") as wav:
+        wav.setnchannels(1)
+        wav.setsampwidth(2)
+        wav.setframerate(sr)
+        wav.writeframes((x * 32767).astype("<i2").tobytes())
+    result = RenderResult(candidate_id="A", kind="audio", artifact_ref=str(path),
+                          cache_key="A", duration_seconds=0.5, sample_rate=sr)
+    manifest = build_audition_manifest(build_synchronized_audition(21, [result]))
+    runtime = AuditionRuntime(manifest, initial_position_seconds=0.4)
+    block = runtime.read_frames(int(sr * 0.2))
+    assert block.frames == int(sr * 0.2)
+    assert any(block.pcm)
+    assert runtime.state.position_seconds == manifest.duration_seconds
