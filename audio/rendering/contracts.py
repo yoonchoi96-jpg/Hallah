@@ -141,7 +141,7 @@ class AuditionManifest:
     duration_seconds: float
     tracks: tuple[AuditionTrack, ...]
     loop_start_seconds: float
-    loop_end_seconds: float
+    loop_end_seconds: float | None
 
     @property
     def candidate_ids(self) -> tuple[str, ...]:
