@@ -4,7 +4,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from audio.rendering.contracts import AuditionManifest, build_audition_manifest
+from audio.rendering.contracts import build_audition_manifest
 
 
 def write_audition_manifest(
