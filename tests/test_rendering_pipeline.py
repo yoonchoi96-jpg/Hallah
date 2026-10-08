@@ -301,3 +301,47 @@ def test_audition_manifest_is_playback_ready_and_deterministic(tmp_path):
     assert payload["loop"] == {"start_seconds": 0.5, "end_seconds": 2.0}
     assert [track["candidate_id"] for track in payload["tracks"]] == ["A", "B", "C", "D"]
     assert all(track["start_seconds"] == 0.0 for track in payload["tracks"])
+
+
+def test_playback_selection_switches_candidates_without_moving_playhead():
+    from audio.rendering.contracts import RenderResult, build_audition_manifest, build_synchronized_audition
+    from audio.rendering.playback import build_playback_state, select_audition_track
+
+    results = [
+        RenderResult(
+            candidate_id=cid,
+            kind="audio",
+            artifact_ref=f"/cache/{cid}.wav",
+            cache_key=cid,
+            duration_seconds=4.0,
+            sample_rate=44100,
+        )
+        for cid in ("A", "B", "C", "D")
+    ]
+    manifest = build_audition_manifest(
+        build_synchronized_audition(12, results, loop_start_seconds=1.0, loop_end_seconds=3.0)
+    )
+    track = select_audition_track(manifest, "C", 2.25)
+    state = build_playback_state(manifest, "C", 2.25)
+    assert track.candidate_id == "C"
+    assert track.artifact_ref == "/cache/C.wav"
+    assert state == state.__class__("C", 2.25, 1.0, 3.0)
+
+
+def test_playback_selection_rejects_unknown_candidate_and_invalid_position():
+    from audio.rendering.contracts import RenderResult, build_audition_manifest, build_synchronized_audition
+    from audio.rendering.playback import select_audition_track
+
+    result = RenderResult(
+        candidate_id="A",
+        kind="audio",
+        artifact_ref="a.wav",
+        cache_key="a",
+        duration_seconds=2.0,
+        sample_rate=44100,
+    )
+    manifest = build_audition_manifest(build_synchronized_audition(1, [result]))
+    with pytest.raises(ValueError, match="Unknown audition candidate"):
+        select_audition_track(manifest, "B", 0.5)
+    with pytest.raises(ValueError, match="position_seconds"):
+        select_audition_track(manifest, "A", 2.1)
