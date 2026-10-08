@@ -100,7 +100,8 @@ class SourceAudioGenerator:
         output_len = max(n_fft, int(round(n_samples * rate)))
         output = np.zeros((output_len + n_fft, channels), dtype=np.float32)
         normalization = np.zeros(output_len + n_fft, dtype=np.float32)
-        expected = 2.0 * np.pi * np.arange(n_fft // 2 + 1) * hop_a / n_fft
+        bin_omega = 2.0 * np.pi * np.arange(n_fft // 2 + 1) / n_fft
+        expected = bin_omega * hop_a
 
         for channel in range(channels):
             previous_phase = None
@@ -121,7 +122,7 @@ class SourceAudioGenerator:
                 else:
                     delta = phase - previous_phase - expected
                     delta -= 2.0 * np.pi * np.round(delta / (2.0 * np.pi))
-                    true_frequency = expected + delta / hop_a
+                    true_frequency = bin_omega + delta / hop_a
                     phase_acc = phase_acc + true_frequency * hop_s
                     previous_phase = phase.copy()
 
