@@ -1,3 +1,5 @@
+import pytest
+
 from audio.cache.keys import build_cache_key
 from audio.rendering.contracts import build_render_request
 from audio.rendering.mock import MockAudioGenerator
@@ -253,7 +255,6 @@ def test_synchronized_audition_shares_one_transport_clock():
 
 
 def test_synchronized_audition_rejects_mismatched_sample_rates():
-    import pytest
     from audio.rendering.contracts import RenderResult, build_synchronized_audition
     results = [
         RenderResult(candidate_id="A", kind="audio", artifact_ref="a.wav", cache_key="a", duration_seconds=2.0, sample_rate=44100),
