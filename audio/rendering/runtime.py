@@ -75,26 +75,19 @@ class AuditionRuntime:
         self._state = advance_playback(self.manifest, self._state, delta_seconds)
         return self._state
 
-    def read_frames(self, frame_count: int) -> AuditionAudioFrame:
-        """Read PCM frames at the shared playhead and advance transport time.
-
-        If the selected candidate is shorter than the shared transport, its
-        missing tail is returned as silence while the transport continues.
-        Switching candidates after this call therefore resumes at the same
-        musical position instead of restarting the selected artifact.
-        """
-        if frame_count <= 0:
-            raise ValueError("frame_count must be positive")
+    def _read_from_artifact(self, position_seconds: float, frame_count: int) -> bytes:
+        """Read one contiguous block, padding past artifact EOF with silence."""
         track = self.track
-        start_seconds = self._state.position_seconds
         with wave.open(str(Path(track.artifact_ref)), "rb") as wav:
             sample_rate = wav.getframerate()
             channels = wav.getnchannels()
             sample_width = wav.getsampwidth()
             if sample_rate != self.manifest.sample_rate:
-                raise ValueError("Audition artifact sample rate does not match manifest")
+                raise ValueError(
+                    "Audition artifact sample rate does not match manifest"
+                )
             start_frame = min(
-                wav.getnframes(), max(0, round(start_seconds * sample_rate))
+                wav.getnframes(), max(0, round(position_seconds * sample_rate))
             )
             wav.setpos(start_frame)
             pcm = wav.readframes(frame_count)
@@ -102,6 +95,60 @@ class AuditionRuntime:
             missing = frame_count - actual_frames
             if missing:
                 pcm += bytes(missing * channels * sample_width)
+            return pcm
+
+    def read_frames(self, frame_count: int) -> AuditionAudioFrame:
+        """Read PCM frames at the shared playhead and advance transport time.
+
+        Loop boundaries are applied to both transport and audio reads, so a
+        block crossing the loop end contains the beginning of the loop rather
+        than audio from beyond the loop boundary.
+        """
+        if frame_count <= 0:
+            raise ValueError("frame_count must be positive")
+
+        track = self.track
+        start_seconds = self._state.position_seconds
+        sample_rate = self.manifest.sample_rate
+        channels = 1
+        sample_width = 2
+        remaining = frame_count
+        position = start_seconds
+        chunks: list[bytes] = []
+
+        loop_start = self.manifest.loop_start_seconds
+        loop_end = self.manifest.loop_end_seconds
+        if loop_end is not None and loop_end > loop_start:
+            loop_length = loop_end - loop_start
+            position = loop_start + ((position - loop_start) % loop_length)
+
+        while remaining:
+            if loop_end is not None and loop_end > loop_start:
+                frames_until_loop = max(
+                    1, round((loop_end - position) * sample_rate)
+                )
+                chunk_frames = min(remaining, frames_until_loop)
+            else:
+                chunk_frames = remaining
+
+            with wave.open(str(Path(track.artifact_ref)), "rb") as wav:
+                sample_rate = wav.getframerate()
+                channels = wav.getnchannels()
+                sample_width = wav.getsampwidth()
+            if sample_rate != self.manifest.sample_rate:
+                raise ValueError(
+                    "Audition artifact sample rate does not match manifest"
+                )
+
+            chunks.append(self._read_from_artifact(position, chunk_frames))
+            remaining -= chunk_frames
+
+            if (
+                remaining
+                and loop_end is not None
+                and loop_end > loop_start
+            ):
+                position = loop_start
 
         self.advance(frame_count / float(sample_rate))
         return AuditionAudioFrame(
@@ -111,5 +158,5 @@ class AuditionRuntime:
             sample_rate=sample_rate,
             channels=channels,
             sample_width=sample_width,
-            pcm=pcm,
+            pcm=b"".join(chunks),
         )
