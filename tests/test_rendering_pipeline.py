@@ -273,3 +273,31 @@ def test_synchronized_audition_uses_longest_candidate_as_transport_duration():
     audition = build_synchronized_audition(2, results)
     assert audition.duration_seconds == 3.5
     assert tuple(track.start_seconds for track in audition.tracks) == (0.0, 0.0)
+
+
+def test_audition_manifest_is_playback_ready_and_deterministic(tmp_path):
+    from audio.rendering.audition import write_audition_manifest
+    from audio.rendering.contracts import RenderResult, build_synchronized_audition
+
+    results = [
+        RenderResult(
+            candidate_id=cid,
+            kind="audio",
+            artifact_ref=f"/cache/{cid}.wav",
+            cache_key=cid,
+            duration_seconds=2.5,
+            sample_rate=44100,
+        )
+        for cid in ("A", "B", "C", "D")
+    ]
+    audition = build_synchronized_audition(
+        9, results, loop_start_seconds=0.5, loop_end_seconds=2.0
+    )
+    path = write_audition_manifest(audition, tmp_path / "audition.json")
+    payload = __import__("json").loads((tmp_path / "audition.json").read_text())
+    assert path.endswith("audition.json")
+    assert payload["sample_rate"] == 44100
+    assert payload["duration_seconds"] == 2.5
+    assert payload["loop"] == {"start_seconds": 0.5, "end_seconds": 2.0}
+    assert [track["candidate_id"] for track in payload["tracks"]] == ["A", "B", "C", "D"]
+    assert all(track["start_seconds"] == 0.0 for track in payload["tracks"])
