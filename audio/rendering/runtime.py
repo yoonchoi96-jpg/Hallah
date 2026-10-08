@@ -94,7 +94,7 @@ class AuditionRuntime:
             if sample_rate != self.manifest.sample_rate:
                 raise ValueError("Audition artifact sample rate does not match manifest")
             start_frame = min(
-                wav.getnframes(), max(0, int(round(start_seconds * sample_rate)))
+                wav.getnframes(), max(0, round(start_seconds * sample_rate))
             )
             wav.setpos(start_frame)
             pcm = wav.readframes(frame_count)
