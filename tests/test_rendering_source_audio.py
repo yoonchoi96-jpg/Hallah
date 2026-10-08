@@ -42,6 +42,21 @@ def test_source_audio_pitch_adaptation_preserves_duration(tmp_path):
     assert result.metadata["pitch_shift_semitones"] == 2.0
     assert abs(result.duration_seconds-3.0) < .08
 
+def test_source_audio_pitch_adaptation_moves_fundamental(tmp_path):
+    src=tmp_path/"source.wav"; _tone(src,seconds=3.0,sr=22050)
+    req=build_render_request("source-v3-spectrum",1,"fit key",{
+        "key":"D","authority_analysis":{str(src):{"key":"C"}}
+    },source_asset_ids=(str(src),))
+    result=SourceAudioGenerator(tmp_path/"cache").render(req)
+    data,_=SourceAudioGenerator(tmp_path/"cache")._read(Path(result.artifact_ref))
+    mono=data[:,0]
+    spectrum=np.abs(np.fft.rfft(mono))
+    freqs=np.fft.rfftfreq(len(mono),1.0/result.sample_rate)
+    band=(freqs >= 235.0) & (freqs <= 260.0)
+    peak_frequency=float(freqs[band][np.argmax(spectrum[band])])
+    assert abs(peak_frequency - 220.0 * 2.0 ** (2.0 / 12.0)) < 3.0
+
+
 def test_source_audio_same_key_does_not_shift(tmp_path):
     src=tmp_path/"source.wav"; _tone(src,seconds=3.0)
     req=build_render_request("source-v4",1,"keep key",{
