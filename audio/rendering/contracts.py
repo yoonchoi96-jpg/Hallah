@@ -161,5 +161,5 @@ def build_audition_manifest(audition: SynchronizedAudition) -> AuditionManifest:
         duration_seconds=audition.duration_seconds,
         tracks=audition.tracks,
         loop_start_seconds=audition.loop_start_seconds,
-        loop_end_seconds=loop_end,
+        loop_end_seconds=audition.loop_end_seconds,
     )
