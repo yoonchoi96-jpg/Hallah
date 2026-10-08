@@ -111,7 +111,6 @@ def test_project_assets_are_injected_into_render_request(tmp_path):
     assert request.parameter_changes["asset_paths"]["guitar-main"] == str(source)
 
 
-
 def test_project_assets_become_render_sources_in_project_order(tmp_path):
     from core.project.models import AudioAsset, MusicProject
     context = SongContext(version=6)
@@ -132,7 +131,6 @@ def test_project_assets_become_render_sources_in_project_order(tmp_path):
         "drums-main": str(first),
         "guitar-main": str(second),
     }
-
 
 
 def test_project_registry_reaches_real_source_audio_generator(tmp_path):
@@ -333,7 +331,11 @@ def test_playback_selection_switches_candidates_without_moving_playhead():
 
 
 def test_playback_selection_rejects_unknown_candidate_and_invalid_position():
-    from audio.rendering.contracts import RenderResult, build_audition_manifest, build_synchronized_audition
+    from audio.rendering.contracts import (
+        RenderResult,
+        build_audition_manifest,
+        build_synchronized_audition,
+    )
     from audio.rendering.playback import select_audition_track
 
     result = RenderResult(
