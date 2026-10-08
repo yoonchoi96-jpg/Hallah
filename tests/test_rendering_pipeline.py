@@ -538,11 +538,11 @@ def test_render_manifest_runtime_end_to_end_for_four_candidates(tmp_path):
     first = runtime.read_frames(4410)
     assert first.candidate_id == manifest.candidate_ids[0]
     assert first.start_seconds == 0.25
-    assert runtime.state.position_seconds == 0.35
+    assert runtime.state.position_seconds == pytest.approx(0.35)
 
     runtime.select_candidate(manifest.candidate_ids[-1])
     second = runtime.read_frames(4410)
     assert second.candidate_id == manifest.candidate_ids[-1]
     assert second.start_seconds == 0.35
-    assert runtime.state.position_seconds == 0.45
+    assert runtime.state.position_seconds == pytest.approx(0.45)
     assert second.pcm != first.pcm
