@@ -150,11 +150,6 @@ class AuditionManifest:
 
 def build_audition_manifest(audition: SynchronizedAudition) -> AuditionManifest:
     """Freeze a synchronized audition into a playback-oriented manifest."""
-    loop_end = (
-        audition.duration_seconds
-        if audition.loop_end_seconds is None
-        else audition.loop_end_seconds
-    )
     return AuditionManifest(
         context_version=audition.context_version,
         sample_rate=audition.sample_rate,
