@@ -351,3 +351,80 @@ def test_playback_selection_rejects_unknown_candidate_and_invalid_position():
         select_audition_track(manifest, "B", 0.5)
     with pytest.raises(ValueError, match="position_seconds"):
         select_audition_track(manifest, "A", 2.1)
+
+
+
+def test_playback_candidate_switch_preserves_shared_playhead():
+    from audio.rendering.contracts import (
+        RenderResult,
+        build_audition_manifest,
+        build_synchronized_audition,
+    )
+    from audio.rendering.playback import build_playback_state, switch_audition_candidate
+
+    results = [
+        RenderResult(
+            candidate_id=cid,
+            kind="audio",
+            artifact_ref=f"/cache/{cid}.wav",
+            cache_key=cid,
+            duration_seconds=4.0,
+            sample_rate=44100,
+        )
+        for cid in ("A", "B", "C", "D")
+    ]
+    manifest = build_audition_manifest(build_synchronized_audition(13, results))
+    state = build_playback_state(manifest, "A", 2.75)
+    switched = switch_audition_candidate(manifest, state, "D")
+    assert switched.candidate_id == "D"
+    assert switched.position_seconds == 2.75
+    assert switched.loop_start_seconds == state.loop_start_seconds
+    assert switched.loop_end_seconds == state.loop_end_seconds
+
+
+def test_playback_advances_and_wraps_inside_loop():
+    from audio.rendering.contracts import (
+        RenderResult,
+        build_audition_manifest,
+        build_synchronized_audition,
+    )
+    from audio.rendering.playback import advance_playback, build_playback_state
+
+    result = RenderResult(
+        candidate_id="A",
+        kind="audio",
+        artifact_ref="a.wav",
+        cache_key="a",
+        duration_seconds=5.0,
+        sample_rate=44100,
+    )
+    manifest = build_audition_manifest(
+        build_synchronized_audition(14, [result], loop_start_seconds=1.0, loop_end_seconds=3.0)
+    )
+    state = build_playback_state(manifest, "A", 2.5)
+    wrapped = advance_playback(manifest, state, 1.0)
+    assert wrapped.position_seconds == 1.5
+    backwards = advance_playback(manifest, wrapped, -1.0)
+    assert backwards.position_seconds == 2.5
+
+
+def test_playback_without_loop_clamps_to_transport_bounds():
+    from audio.rendering.contracts import (
+        RenderResult,
+        build_audition_manifest,
+        build_synchronized_audition,
+    )
+    from audio.rendering.playback import advance_playback, build_playback_state
+
+    result = RenderResult(
+        candidate_id="A",
+        kind="audio",
+        artifact_ref="a.wav",
+        cache_key="a",
+        duration_seconds=5.0,
+        sample_rate=44100,
+    )
+    manifest = build_audition_manifest(build_synchronized_audition(15, [result]))
+    state = build_playback_state(manifest, "A", 4.0)
+    assert advance_playback(manifest, state, 3.0).position_seconds == 5.0
+    assert advance_playback(manifest, state, -6.0).position_seconds == 0.0
