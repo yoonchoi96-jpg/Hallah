@@ -77,23 +77,103 @@ class SourceAudioGenerator:
         target=max(1,int(round(float(n/rate))))
         return np.pad(out[:target],((0,max(0,target-len(out)))),mode="constant").astype(np.float32)
     @staticmethod
-    def _pitch_shift(data: np.ndarray, semitones: float) -> np.ndarray:
-        """Pitch shift while approximately preserving duration.
+    def _time_stretch(data: np.ndarray, rate: float) -> np.ndarray:
+        """Deterministic phase-vocoder time stretch.
 
-        V0 uses deterministic resampling followed by OLA duration restoration.
-        It is intentionally isolated so a higher-quality phase-vocoder backend
-        can replace it without changing the render contract.
+        rate is the output-duration multiplier: 2.0 produces roughly twice
+        the input duration while preserving the dominant spectral pitch.
+        """
+        if rate <= 0:
+            raise ValueError("rate must be positive")
+        n_samples, channels = data.shape
+        if abs(rate - 1.0) < 1e-6 or n_samples < 4096:
+            return data.copy()
+
+        n_fft = min(2048, 2 ** int(math.log2(max(1024, min(n_samples, 2048)))))
+        hop_a = max(128, n_fft // 4)
+        hop_s = max(1, int(round(hop_a * rate)))
+        window = np.hanning(n_fft).astype(np.float32)
+        starts = list(range(0, max(1, n_samples - n_fft + 1), hop_a))
+        if not starts or starts[-1] + n_fft < n_samples:
+            starts.append(max(0, n_samples - n_fft))
+        frame_count = len(starts)
+        output_len = max(n_fft, int(round(n_samples * rate)))
+        output = np.zeros((output_len + n_fft, channels), dtype=np.float32)
+        normalization = np.zeros(output_len + n_fft, dtype=np.float32)
+        expected = 2.0 * np.pi * np.arange(n_fft // 2 + 1) * hop_a / n_fft
+
+        for channel in range(channels):
+            previous_phase = None
+            phase_acc = None
+            channel_out = np.zeros(output_len + n_fft, dtype=np.float32)
+
+            for frame_index, start in enumerate(starts):
+                frame = data[start : start + n_fft, channel]
+                if len(frame) < n_fft:
+                    frame = np.pad(frame, (0, n_fft - len(frame)))
+                spectrum = np.fft.rfft(frame * window)
+                magnitude = np.abs(spectrum)
+                phase = np.angle(spectrum)
+
+                if frame_index == 0:
+                    phase_acc = phase.copy()
+                    previous_phase = phase.copy()
+                else:
+                    delta = phase - previous_phase - expected
+                    delta -= 2.0 * np.pi * np.round(delta / (2.0 * np.pi))
+                    true_frequency = expected + delta / hop_a
+                    phase_acc = phase_acc + true_frequency * hop_s
+                    previous_phase = phase.copy()
+
+                synthesized = np.fft.irfft(
+                    magnitude * np.exp(1j * phase_acc), n=n_fft
+                ).astype(np.float32)
+                out_start = frame_index * hop_s
+                if out_start + n_fft > len(channel_out):
+                    break
+                channel_out[out_start : out_start + n_fft] += synthesized * window
+
+            output[:, channel] = channel_out[: len(output)]
+
+        for frame_index in range(frame_count):
+            out_start = frame_index * hop_s
+            if out_start + n_fft > len(normalization):
+                break
+            normalization[out_start : out_start + n_fft] += window * window
+        valid = normalization > 1e-8
+        output[valid] /= normalization[valid, None]
+        output[~valid] = 0.0
+        return output[:output_len].astype(np.float32)
+
+    @staticmethod
+    def _pitch_shift(data: np.ndarray, semitones: float) -> np.ndarray:
+        """Pitch shift with deterministic resampling + phase-vocoder restoration.
+
+        Resampling changes pitch and duration together; the phase vocoder then
+        restores the original duration without changing the shifted pitch.
         """
         if abs(semitones) < 1e-6 or len(data) < 2048:
             return data.copy()
+
         factor = 2.0 ** (semitones / 12.0)
-        new_len = max(2, int(round(float(len(data) / factor))))
+        new_len = max(2, int(round(float(len(data)) / factor)))
         positions = np.linspace(0.0, len(data) - 1.0, new_len)
         base = np.arange(len(data), dtype=np.float64)
         resampled = np.empty((new_len, data.shape[1]), dtype=np.float32)
         for channel in range(data.shape[1]):
-            resampled[:, channel] = np.interp(positions, base, data[:, channel]).astype(np.float32)
-        return SourceAudioGenerator._stretch(resampled, 1.0 / factor)
+            resampled[:, channel] = np.interp(
+                positions, base, data[:, channel]
+            ).astype(np.float32)
+
+        restored = SourceAudioGenerator._time_stretch(resampled, factor)
+        target = len(data)
+        if len(restored) > target:
+            return restored[:target].astype(np.float32)
+        return np.pad(
+            restored,
+            ((0, target - len(restored)), (0, 0)),
+            mode="constant",
+        ).astype(np.float32)
 
     @staticmethod
     def _candidate_gain(changes: dict[str, object]) -> float:
